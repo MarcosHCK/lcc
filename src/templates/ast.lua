@@ -25,6 +25,7 @@ local Ast = { }
 --- @alias AstType
 --- | 'operator'
 --- | 'symbol'
+--- | 'trigger'
 
 --- @alias OperatorType
 --- | '&' # BinaryOperator (BNF's (expr expr) concatenation)
@@ -39,6 +40,12 @@ local Ast = { }
 --- @class Symbol: Ast
 --- @field name string
 --- @field terminal boolean
+
+--- @class Trigger: Ast
+--- @field callback TriggerFunc
+--- @field over Operand
+
+--- @alias TriggerFunc fun(...)
 
 --- @alias Operand Operator | Symbol
 
@@ -88,9 +95,10 @@ do
   --- Check if arg is an instance of Operator
   ---
   --- @param arg any
+  --- @param type? OperatorType
   --- @return boolean is
   ---
-  function Ast.isOperator (arg) return Ast.isAstOfType (arg, 'operator') end
+  function Ast.isOperator (arg, type) return Ast.isAstOfType (arg, 'operator') and (type == nil or arg.op == type) end
 
   ---
   --- Checks if arg is an instance of Symbol
@@ -110,10 +118,15 @@ do
   function Ast.isTerminal (arg) return Ast.isSymbol (arg, true) end
 
   ---
+  --- Checks if arg is an instance of Trigger
+  ---
+  function Ast.isTrigger (arg) return Ast.isAstOfType (arg, 'trigger') end
+
+  ---
   --- Creates a new symbol
   ---
   --- @param nameOrLeft string | Ast
-  --- @param terminalOrRight? boolean | Ast
+  --- @param terminalOrRight? boolean | TriggerFunc | Ast
   --- @param operationType? OperatorType
   --- @return Ast symbol
   ---
@@ -134,6 +147,13 @@ do
       symbol.op = utils.assert_arg (2, operationType, 'string')
       symbol.operand = utils.assert_arg (1, nameOrLeft, 'table')
       symbol.type = 'operator'
+    elseif (not Ast.isAst (terminalOrRight)) then
+
+      --- @cast symbol Trigger
+
+      symbol.callback = utils.assert_arg (2, terminalOrRight, 'function')
+      symbol.over = utils.assert_arg (1, nameOrLeft, 'table')
+      symbol.type= 'trigger'
     else
 
       --- @cast symbol BinaryOperator
@@ -248,6 +268,21 @@ do
   ast_mt =
     {
       __add = function (s1, s2) return Ast.new (s1, s2, '&') end,
+
+      ---
+      --- @param s Ast
+      --- @param c TriggerFunc
+      ---
+      __div = function (s, c)
+
+        local check = function (e) return Ast.isSymbol (e) or Ast.isOperator (e) end
+
+        utils.assert_arg (2, c, 'function')
+        utils.assert_arg (1, s, 'table', check, 'wrong operation over a non-operand AST')
+        --- @cast s Symbol | Operator
+        return Ast.new (s, c)
+      end,
+
       __index = function (_, k) return Ast[k] end,
       __mul = function (s1, s2) return Ast.new (s1, s2, '|') end,
       __name = 'Ast',
@@ -292,6 +327,10 @@ do
 
             return ('%s:{%s}'):format (s.name, List.concat (s.constraints, ', '))
           end
+        elseif (Ast.isTrigger (s)) then
+
+          --- @cast s Trigger
+          return ('$(%s)'):format (tostring (s.over))
         elseif (Ast.isNonTerminal (s)) then
 
           --- @cast s NonTerminalSymbol
@@ -317,7 +356,7 @@ do
           end
         else
 
-          error ('unknown AST node', 4)
+          error ('unknown AST node')
         end
       end,
     }

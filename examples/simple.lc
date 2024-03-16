@@ -21,9 +21,9 @@ OPERATOR = token ()
 
 NEGATOR = subset (NUMBER, 'n')
 
-FILE = LINE ^ 0
+FILE = FILE * LINE ^ 0
 LINE = BREAKLINE * (EXPR + BREAKLINE)
-EXPR = NUMBER * (EXPR + NEGATOR) * (EXPR + EXPR + OPERATOR)
+EXPR = NUMBER * (EXPR + NEGATOR) * ((EXPR + EXPR + OPERATOR) / print)
 
 function main ()
 
