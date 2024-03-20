@@ -17,13 +17,22 @@
 
 BREAKLINE = token ()
 NUMBER = token ()
-OPERATOR = token ()
 
-NEGATOR = subset (NUMBER, 'n')
+EXPR = nonterminal ()
+FILE = nonterminal ()
+LINE = nonterminal ()
+OPERATOR = nonterminal ()
 
-FILE = FILE * LINE ^ 0
+operator ('+', 2, 'left')
+operator ('-', 2, 'left')
+operator ('*', 3, 'left')
+operator ('/', 3, 'left')
+operator ('^', 4, 'right')
+
+FILE = LINE ^ 0
 LINE = BREAKLINE * (EXPR + BREAKLINE)
-EXPR = NUMBER * (EXPR + NEGATOR) * ((EXPR + EXPR + OPERATOR) / print)
+EXPR = NUMBER * (EXPR + 'n') * (EXPR + EXPR + OPERATOR)
+OPERATOR = literal '+' + '-' + '*' + '/' + '^'
 
 function main ()
 

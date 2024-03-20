@@ -17,8 +17,8 @@
 
 --- @meta
 
---- @module 'templates.rule'
-local Rule
+--- @module 'templates.grammar'
+local Grammar
 
 --- @alias MainFunc fun(tout: file*)
 
@@ -38,35 +38,58 @@ main = nil
 function _ (...) end
 
 ---
+--- Makes symbol associative
+---
+--- @param symbol string | Symbol
+--- @param assoc Associativity
+---
+function associative (symbol, assoc) end
+
+---
 --- See io.stderr:write (...)
 --- @param ... string
 ---
 function fail (...) end
 
 ---
---- See description for templates.include
---- @source init.lua:92
+--- Wraps a literal value to allow operations over it
+--- Note: due to templates limitations there is no ways to operate directly a
+--- production as RULE = 'a' + 'b' ( SOME -> a | b in BNF ), so the left literal
+--- should be wrapped using literal
 ---
---- @param name string
---- @return MainFunc template_main
+--- @param value string
+--- @return Symbol
 ---
-function include (name) end
+function literal (value) end
 
 ---
---- Defines a terminal symbol which is a subset of a given symbol (it means
---- it uses the same token identifier but restricts the semantic value it
---- accepts)
+--- Creates a non-terminal symbol
 ---
---- @param from TerminalSymbol
+--- @return Symbol
+---
+function nonterminal () end
+
+---
+--- Shorthand for a associative and precedence over the same symbol
+---
+--- @param symbol string | Symbol
+--- @param precedence integer
+--- @param assoc Associativity
+---
+function operator (symbol, precedence, assoc) end
+
+---
+--- Sets symbol precedence (only meaningful if it is also associative)
+---
+--- @param symbol string | Symbol
+--- @param precedence integer
+---
+function precedence (symbol, precedence, assoc) end
+
+---
+--- Creates a named token (one which has a token class associated to it)
+---
 --- @param ... string
---- @return TerminalSymbol
+--- @return Symbol
 ---
-function subset (from, ...) end
-
----
---- Defines a terminal symbol for this grammar (a token)
----
---- @param name string
---- @return TerminalSymbol
----
-function token (name) end
+function token (...) end
