@@ -47,7 +47,7 @@ local Grammar = { }
 --- @alias Associativity 'left' | 'right'
 --- @alias AstType 'operator' | 'symbol'
 --- @alias Operand Operator | Symbol
---- @alias OperatorKind '&' | '|' | '*' | '+' | '?'
+--- @alias OperatorKind '&' | '|' | '*' | '+' | '?' | '$'
 --- @alias TriggerFunc fun()
 
 --- @class Ast
@@ -62,10 +62,15 @@ local Ast = { }
 --- @field public id? string
 --- @field public precedence? integer
 --- @field public terminal boolean
+--- @field public trigger? TriggerFunc
 
 --- @class BinaryOperator: Operator
 --- @field public operand1 Operand
 --- @field public operand2 Operand
+
+--- @class TriggerOperator: Operator
+--- @field public callback TriggerFunc
+--- @field public operand1 Operand
 
 --- @class UnaryOperator: Operator
 --- @field public operand1 Operand
@@ -199,21 +204,27 @@ do
     end
 
     ---
-    --- @param type AstType
+    --- @param t AstType
     --- @param ... any
     ---
-    function Ast.new (type, ...)
+    function Ast.new (t, ...)
 
       local node = { }
 
-      if (type == 'operator') then
+      if (t == 'operator' and type ((...)) == 'function') then
+
+        local a1, a2 = ...
+        local fn = utils.assert_arg (2, a1, 'function')
+        local op1 = utils.assert_arg (3, a2, 'table', Ast.isOperand, 'not an operand')
+        node = { callback = fn, kind = '$', operand1 = op1 }
+      elseif (t == 'operator') then
 
         local a1, a2, a3 = ...
         local kind = utils.assert_string (2, a1)
         local op1 = utils.assert_arg (3, a2, 'table', Ast.isOperand, 'not an operand')
         local op2 = a3 and utils.assert_arg (4, a3, 'table', Ast.isOperand, 'not an operand')
         node = { kind = kind, operand1 = op1, operand2 = op2 or nil }
-      elseif (type == 'symbol') then
+      elseif (t == 'symbol') then
 
         local a1, a2 = ...
         local id = a1 and utils.assert_arg (2, a1, 'string')
@@ -221,7 +232,7 @@ do
         node = { id = id or nil, productions = not terminal and List { }, restrictions = terminal and Set { }, terminal = terminal }
       end
 
-      node.type = utils.assert_arg (1, type, 'string')
+      node.type = utils.assert_arg (1, t, 'string')
 
       return setmetatable (node, ast_mt)
     end
@@ -243,6 +254,8 @@ do
     Ast.newOperator = func.bind1 (Ast.new, 'operator')
     --- @type fun(id?: string, terminal: boolean): Symbol
     Ast.newSymbol = func.bind1 (Ast.new, 'symbol')
+    --- @type fun(callback: TriggerFunc, op1: Operand): Operator
+    Ast.newTrigger = func.bind1 (Ast.new, 'operator')
 
     --- @type fun(o: string | Operand): Operand
     ---
@@ -261,7 +274,11 @@ do
       {
         --- @type fun(a: Operand, b: string | Operand): Operator
         __add = function (a, b) return Ast.newOperator ('&', Ast.operand (a), Ast.operand (b)) end,
+        --- @type fun(a: Operand, b: TriggerFunc): Operator
+        __div = function (t, c) return Ast.newTrigger (c, Ast.operand (t)) end,
+        --- @type fun(a: Operand, b: string | Operand): Operator
         __mul = function (a, b) return Ast.newOperator ('|', Ast.operand (a), Ast.operand (b)) end,
+
         __name = 'AST',
 
         --- @type fun(t: Operand, n: integer): Operator
@@ -298,11 +315,14 @@ do
           elseif (Ast.isTerminal (t)) then
 
             --- @cast t TerminalSymbol
-            if (Set.len (t.restrictions) == 0) then
 
-              return t.id or '<unclassed>'
+            if (not t.id) then
+
+              assert (List.len (t.restrictions) == 1, 'literal symbol must have exactly one restriction')
+              return ('\'%s\''):format (t.restrictions[1])
+            elseif (Set.len (t.restrictions) == 0) then
+              return t.id
             else
-
               return ('%s:{%s}'):format (t.id or '<unclassed>', List.concat (t.restrictions, ', '))
             end
           elseif (Ast.isNonTerminal (t)) then

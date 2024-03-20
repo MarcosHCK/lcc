@@ -30,7 +30,7 @@ operator ('/', 3, 'left')
 operator ('^', 4, 'right')
 
 FILE = LINE ^ 0
-LINE = BREAKLINE * (EXPR + BREAKLINE)
+LINE = BREAKLINE * ((EXPR / print) + BREAKLINE)
 EXPR = NUMBER * (EXPR + 'n') * (EXPR + EXPR + OPERATOR)
 OPERATOR = literal '+' + '-' + '*' + '/' + '^'
 
