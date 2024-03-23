@@ -52,6 +52,14 @@ function associative (symbol, assoc) end
 function fail (...) end
 
 ---
+--- Sets the initial non-terminal ( S symbol in BNF theory )
+---
+--- @param symbol Symbol
+--- @return Symbol
+---
+function initial (symbol) end
+
+---
 --- Wraps a literal value to allow operations over it
 --- Note: due to templates limitations there is no ways to operate directly a
 --- production as RULE = 'a' + 'b' ( SOME -> a | b in BNF ), so the left literal

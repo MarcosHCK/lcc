@@ -16,6 +16,7 @@
 --
 local func = require ('pl.func')
 local pretty = require ('pl.pretty')
+local tablex = require ('pl.tablex')
 local utils = require ('pl.utils')
 
 --- @class List<T>: { [integer]: T }
@@ -34,13 +35,15 @@ local Set = require ('pl.Set')
 
 --- @class Grammar
 --- @field public associative fun(self: Grammar, symbol: string | Symbol, assoc: Associativity): Symbol
+--- @field public initial fun(self: Grammar, symbol: Symbol): Symbol
 --- @field public literal fun(self: Grammar, value: string): Symbol
+--- @field private nextautomate integer
 --- @field public nonterminal fun(self: Grammar, class: string): Symbol
 --- @field public precedence fun(self: Grammar, symbol: string | Symbol, value: integer): Symbol
---- @field public produce fun(self: Grammar, symbol: string | Symbol, operand: Operand): Symbol, Operand
---- @field public restrict fun(self: Grammar, symbol: string | Symbol, values: string []): Symbol
+--- @field public produce fun(self: Grammar, symbol: Symbol, operand: Operand): Symbol, Operand
+--- @field public restrict fun(self: Grammar, symbol: Symbol, values: string []): Symbol
 --- @field public symbol fun(self: Grammar, class: string): Symbol
---- @field private symbols table<string>
+--- @field private symbols table<string, Symbol>
 --- @field public token fun(self: Grammar, id: string): Symbol
 local Grammar = { }
 
@@ -49,10 +52,6 @@ local Grammar = { }
 --- @alias Operand Operator | Symbol
 --- @alias OperatorKind '&' | '|' | '*' | '+' | '?' | '$'
 --- @alias TriggerFunc fun()
-
---- @class Ast
---- @field public type AstType
-local Ast = { }
 
 --- @class Operator: Ast
 --- @field public kind OperatorKind
@@ -75,7 +74,11 @@ local Ast = { }
 --- @class UnaryOperator: Operator
 --- @field public operand1 Operand
 
+--- @class EofSymbol: Symbol
+--- @field public eof boolean
+
 --- @class NonTerminalSymbol: Symbol
+--- @field public initial? boolean
 --- @field public productions? Operand[]
 
 --- @class TerminalSymbol: Symbol
@@ -83,64 +86,103 @@ local Ast = { }
 
 do
 
-  local grammar_mt = { __name = 'Grammar' }
+  local grammar_mt =
+    {
+      __index = function (self, k)
+
+        return Grammar._get (self, k)
+      end,
+
+      __name = 'Grammar',
+
+      __tostring = function (self)
+
+        local initials = Grammar._filter (self, function (_, e)
+
+          --- @cast e NonTerminalSymbol
+          return e.type == 'symbol' and not e.terminal and e.initial == true
+        end)
+
+        if (tablex.size (initials) ~= 1) then
+
+          return 'unusabe grammar'
+        else
+
+          local initial = initials[tablex.keys (initials) [1]]
+          local head = tostring (initial)
+          return head
+        end
+      end,
+    }
 
   --- @param self Grammar
-  --- @param name string
-  --- @param symbol Symbol
-  --- @return Symbol
+  --- @return NonTerminalSymbol
   ---
-  function Grammar._add (self, name, symbol)
+  function Grammar._automate (self)
 
-    assert (not self.symbols[name], ('redefining symbol \'%s\''):format (name))
+    local next
 
-    self.symbols[name] = symbol
-    return symbol
-  end
+    for i = 1, math.huge, 1 do
 
-  --- @param self Grammar
-  --- @param class string
-  --- @return Symbol
-  ---
-  function Grammar._get (self, class)
+      next = 'AUTOMATE' .. tostring (self.nextautomate + i - 1)
 
-    return self.symbols[utils.assert_string (1, class)]
-  end
+      if (not self.symbols[next]) then
 
-  --- @param self Grammar
-  --- @param value string | Symbol
-  --- @return Symbol
-  ---
-  function Grammar._node (self, value)
+        self.nextautomate = self.nextautomate + i
 
-    if (type (value) ~= 'string') then
-
-      return (utils.assert_arg (1, value, 'table', Ast.isSymbol, 'not a symbol'))
-    else
-
-      local id = ('\'%s\''):format (value)
-      local sym = self.symbols[id]
-
-      return sym or self:restrict (Grammar._add (self, id, Ast.new ('symbol', nil, true)), { value })
+        --- @type NonTerminalSymbol
+        return self:nonterminal (next)
+      end
     end
+
+    error ('WTF?')
   end
 
+  --- @param self Grammar
+  --- @param fn fun(key: string, symbol: Symbol): boolean
+  --- @return table<string, Symbol>
+  ---
+  function Grammar._filter (self, fn)
+
+    local filtered = { }
+
+    for key, symbol in pairs (self.symbols) do
+
+      if (fn (key, symbol) == true) then
+
+        filtered[key] = symbol
+      end
+    end
+  return filtered
+  end
+
+  --- @param self Grammar
+  --- @param id string
+  --- @return Symbol
+  ---
+  function Grammar._get (self, id)
+
+    return self.symbols [utils.assert_string (1, id)]
+  end
+
+  --- @param Ast Ast
   --- @param o Operand
   --- @return Set<TerminalSymbol>
-  local function collectNons (o)
+  local function collectNons (Ast, o)
 
     if (Ast.isNonTerminal (o)) then return Set { o }
     elseif (Ast.isOperator (o)) then
 
       --- @cast o BinaryOperator
-      return collectNons (o.operand1) + (collectNons (o.operand2 or {}))
+      return collectNons (Ast, o.operand1) + (collectNons (Ast, o.operand2 or {}))
     end
     return Set { }
   end
 
+  --- @param Ast Ast
   --- @param o Operand
   --- @return Set<TerminalSymbol>
-  local function extractNons (o)
+  local function extractNons (Ast, o)
 
     local nexts = List { o }
     local nons = Set { o }
@@ -149,7 +191,7 @@ do
 
       for _, p in ipairs (List.pop (nexts).productions) do
 
-        local news = Set.union (nons, collectNons (p))
+        local news = Set.union (nons, collectNons (Ast, p))
 
         nexts = List.extend (nexts, Set.values (news - nons))
         nons = news
@@ -167,6 +209,44 @@ do
 
     local ast_mt
     local grammar
+
+    --- @class Ast
+    --- @field public type AstType
+    local Ast = { }
+
+    --- @param self Grammar
+    --- @param name string
+    --- @param symbol Symbol
+    --- @return Symbol
+    ---
+    local function _add (self, name, symbol)
+
+      ---@diagnostic disable-next-line: invisible
+      assert (not self.symbols[name], ('redefining symbol \'%s\''):format (name))
+
+      ---@diagnostic disable-next-line: invisible
+      self.symbols[name] = symbol
+      return symbol
+    end
+
+    --- @param self Grammar
+    --- @param value string | Symbol
+    --- @return Symbol
+    ---
+    local function _node (self, value)
+
+      if (type (value) ~= 'string') then
+
+        return (utils.assert_arg (1, value, 'table', Ast.isSymbol, 'not a symbol'))
+      else
+
+        local id = ('\'%s\''):format (value)
+        ---@diagnostic disable-next-line: invisible
+        local sym = self.symbols[id]
+
+        return sym or self:restrict (_add (self, id, Ast.new ('symbol', nil, true)), { value })
+      end
+    end
 
     ---
     --- @param s Ast
@@ -240,6 +320,8 @@ do
     --- @type fun(s: any, type?: AstType, ...: any): boolean
     Ast.isAst = function (s, type) return Ast.is (s, type) end
     --- @type fun(s: any): boolean
+    Ast.isEof = function (s) return Ast.is (s, 'symbol', true) and s.eof == true end
+    --- @type fun(s: any): boolean
     Ast.isNonTerminal = function (s) return Ast.is (s, 'symbol', false) end
     --- @type fun(s: any): boolean
     Ast.isOperand = function (s) return Ast.isOperator (s) or Ast.isSymbol (s) end
@@ -257,13 +339,23 @@ do
     --- @type fun(callback: TriggerFunc, op1: Operand): Operator
     Ast.newTrigger = func.bind1 (Ast.new, 'operator')
 
+    --- @type fun(): EofSymbol
+    Ast.eof = function ()
+
+      local symbol = Ast.newSymbol ('EOF', true)
+
+      --- @cast symbol EofSymbol
+        symbol.eof = true
+      return symbol
+    end
+
     --- @type fun(o: string | Operand): Operand
     ---
     Ast.operand = function (o)
 
       if (type (o) == 'string') then
 
-        return Grammar._node (grammar, o)
+        return _node (grammar, o)
       else
 
         return utils.assert_arg (1, o, 'table', Ast.isOperand, 'not an operand')
@@ -334,7 +426,7 @@ do
             else
 
               local lines = List { }
-              local nons = List (Set.values (extractNons (t)))
+              local nons = List (Set.values (extractNons (Ast, t)))
 
               for _, non in ipairs (nons) do
 
@@ -362,9 +454,27 @@ do
         ---
         associative = function (self, symbol, a)
 
-          local node = Grammar._node (self, symbol)
+          local node = _node (self, symbol)
           local assoc = utils.assert_arg (2, a, 'string')
             node.associativity = assoc
+          return node
+        end,
+
+        --- @type fun(self: Grammar, symbol: Symbol): Symbol
+        ---
+        initial = function (self, symbol)
+
+          local node = utils.assert_arg (1, symbol, 'table', Ast.isNonTerminal, 'not a non-terminal')
+          local anothers = Grammar._filter (self, function (_, e)
+
+            --- @cast e NonTerminalSymbol
+            return Ast.isNonTerminal (e) and e.initial == true
+          end)
+
+          assert (tablex.size (anothers) == 0, 'initial symbol is already set')
+
+          --- @cast node NonTerminalSymbol
+            node.initial = true
           return node
         end,
 
@@ -372,33 +482,33 @@ do
         ---
         literal = function (self, value)
 
-          return Grammar._node (self, utils.assert_string (1, value))
+          return _node (self, utils.assert_string (1, value))
         end,
 
         --- @type fun(self: Grammar, class: string): Symbol
         ---
         nonterminal = function (self, class)
 
-          return Grammar._add (self, class, Ast.newSymbol (class, false))
+          return _add (self, class, Ast.newSymbol (class, false))
         end,
 
         --- @type fun(self: Grammar, symbol: string | Symbol, value: integer): Symbol
         ---
         precedence = function (self, symbol, p)
 
-          local node = Grammar._node (self, symbol)
+          local node = _node (self, symbol)
           local precedence = utils.assert_arg (2, p, 'number', function (e) return e == math.floor (e) end, 'not an integer')
             node.precedence = precedence
           return node
         end,
 
-        --- @type fun(self: Grammar, symbol: string | Symbol, operand: Operand): Symbol, Operand
+        --- @type fun(self: Grammar, symbol: Symbol, operand: Operand): Symbol, Operand
         ---
         produce = function (self, symbol, o)
 
-          local n = Grammar._node (self, symbol)
+          local n = _node (self, symbol)
           local node = utils.assert_arg (1, n, 'table', Ast.isNonTerminal, 'not a non-terminal symbol')
-          local operand = utils.assert_arg (1, o, 'table', Ast.isOperand, 'not an operand')
+          local operand = utils.assert_arg (2, o, 'table', Ast.isOperand, 'not an operand')
 
           --- @cast node NonTerminalSymbol
           --- @cast operand Operand
@@ -406,11 +516,11 @@ do
           return node, operand
         end,
 
-        --- @type fun(self: Grammar, symbol: string | Symbol, values: string []): Symbol
+        --- @type fun(self: Grammar, symbol: Symbol, values: string []): Symbol
         ---
         restrict = function (self, symbol, v)
 
-          local n = Grammar._node (self, symbol)
+          local n = _node (self, symbol)
           local node = utils.assert_arg (1, n, 'table', Ast.isTerminal, 'not a terminal symbol')
           local values = utils.assert_arg (2, v, 'table')
 
@@ -425,9 +535,10 @@ do
 
         --- @type fun(self: Grammar, id: string): Symbol
         ---
-        token = function (self, id) return Grammar._add (self, id, Ast.new ('symbol', id, true)) end,
+        token = function (self, id) return _add (self, id, Ast.new ('symbol', id, true)) end,
 
-        symbols = {},
+        nextautomate = 1,
+        symbols = { EOF = Ast.eof () },
       }
 
     return setmetatable (grammar, grammar_mt)

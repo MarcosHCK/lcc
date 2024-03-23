@@ -23,6 +23,8 @@ FILE = nonterminal ()
 LINE = nonterminal ()
 OPERATOR = nonterminal ()
 
+initial (FILE)
+
 operator ('+', 2, 'left')
 operator ('-', 2, 'left')
 operator ('*', 3, 'left')
@@ -30,12 +32,16 @@ operator ('/', 3, 'left')
 operator ('^', 4, 'right')
 
 FILE = LINE ^ 0
-LINE = BREAKLINE * ((EXPR / print) + BREAKLINE)
+LINE = BREAKLINE * (EXPR + BREAKLINE)
 EXPR = NUMBER * (EXPR + 'n') * (EXPR + EXPR + OPERATOR)
-OPERATOR = literal '+' + '-' + '*' + '/' + '^'
+OPERATOR = literal '+' * '-' * '*' * '/' * '^'
 
 function main ()
 
   _ ('Hello World')
   _ (tostring (FILE))
+
+  _ ()
+  _ ('Hello World')
+  _ (tostring (grammar))
 end

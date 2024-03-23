@@ -16,6 +16,7 @@
 --
 --- @module 'templates.d'
 local d
+local canon = require ('templates.canon')
 local compat = require ('pl.compat')
 local Grammar = require ('templates.grammar')
 local templates = {}
@@ -34,12 +35,13 @@ do
 
   ---
   --- @param global table
+  --- @param grammar Grammar
   --- @param chunk function | nil
   --- @param reason? string
   --- @return nil | MainFunc template
   --- @return (string | table)? reasonOrSymbols
   ---
-  local function loadCapture (global, chunk, reason)
+  local function loadCapture (global, grammar, chunk, reason)
 
     if (not chunk) then
 
@@ -52,7 +54,9 @@ do
       end)
 
       if (not success) then return nil, result
-      elseif (not global.main) then return function () end
+      elseif (not global.main) then
+
+        return function () end
       else
 
         return function (stdout)
@@ -61,7 +65,8 @@ do
           local fun = compat.setfenv (global.main, env)
 
           env._G = env
-          env['_'] = function (...) stdout:write (..., '\n') end
+          env.grammar = canon (grammar)
+          env['_'] = function (...) assert (stdout:write (... or '', '\n')) end
           return (compat.setfenv (global.main, env)) (stdout)
         end
       end
@@ -119,7 +124,11 @@ do
 
         --- @type fun(...: string): any
         ---
-        fail = function (...) return assert (io.stderr:write (..., '\n')) end,
+        fail = function (...) return assert (io.stderr:write (... or '', '\n')) end,
+
+        --- @type fun(...: Symbol): Symbol
+        ---
+        initial = function (...) return grammar:initial (...) end,
 
         --- @type fun(a: string): Symbol
         ---
@@ -151,7 +160,7 @@ do
 
     global._G = setmetatable (global, global_mt)
 
-    return loadCapture (global, compat.load (source, chunkname, mode, global))
+    return loadCapture (global, grammar, compat.load (source, chunkname, mode, global))
   end
 return templates
 end
