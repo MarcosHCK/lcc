@@ -14,26 +14,19 @@
 -- You should have received a copy of the GNU General Public License
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
-algorithm ('lalr')
-generator ('python')
 
-BREAKLINE = token ()
-NUMBER = token ()
+--- @module 'algorithms'
+--- @class LALRAlgorithm: Algorithm
+local algorithm = {}
 
-EXPR = nonterminal ()
-FILE = nonterminal ()
-LINE = nonterminal ()
-OPERATOR = nonterminal ()
+do
 
-initial (FILE)
+  --- @param grammar Grammar
+  --- @return ParserTable
+  ---
+  function algorithm.emit (grammar)
 
-operator ('+', 2, 'left')
-operator ('-', 2, 'left')
-operator ('*', 3, 'left')
-operator ('/', 3, 'left')
-operator ('^', 4, 'right')
-
-FILE = LINE ^ 0
-LINE = BREAKLINE * (EXPR + BREAKLINE)
-EXPR = NUMBER * (EXPR + 'n') * (EXPR + EXPR + OPERATOR)
-OPERATOR = literal '+' * '-' * '*' * '/' * '^'
+    return {}
+  end
+return algorithm
+end

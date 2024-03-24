@@ -16,9 +16,10 @@
 --
 --- @module 'templates.d'
 local d
-local canon = require ('templates.canon')
+local canonicalize = require ('templates.canonicalize')
 local compat = require ('pl.compat')
 local Grammar = require ('templates.grammar')
+local pathutil = require ('pl.path')
 local templates = {}
 local utils = require ('pl.utils')
 
@@ -33,44 +34,21 @@ do
   ---
   templates.path = '?.lua'
 
+  --- @param from string
+  --- @param name string
+  --- @param iffailed string
+  --- @return any
   ---
-  --- @param global table
-  --- @param grammar Grammar
-  --- @param chunk function | nil
-  --- @param reason? string
-  --- @return nil | MainFunc template
-  --- @return (string | table)? reasonOrSymbols
-  ---
-  local function loadCapture (global, grammar, chunk, reason)
+  local function pick (from, name, iffailed)
 
-    if (not chunk) then
+    local base = utils.assert_string (1, name)
+    local path = pathutil.normpath (base)
 
-      return nil, reason
-    else
+    assert (not path:match ('[%/]'), string.format (iffailed, name))
 
-      local success, result = xpcall (chunk, function (msg)
-
-        return debug.traceback (msg)
-      end)
-
-      if (not success) then return nil, result
-      elseif (not global.main) then
-
-        return function () end
-      else
-
-        return function (stdout)
-
-          local env = setmetatable ({}, { __index = global })
-          local fun = compat.setfenv (global.main, env)
-
-          env._G = env
-          env.grammar = canon (grammar)
-          env['_'] = function (...) assert (stdout:write (... or '', '\n')) end
-          return (compat.setfenv (global.main, env)) (stdout)
-        end
-      end
-    end
+    local success, result = pcall (require, ('%s.%s'):format (from, path))
+    local picked = assert (success and result, string.format (iffailed, name))
+    return picked
   end
 
   ---
@@ -92,11 +70,15 @@ do
     if (chunkname ~= nil) then utils.assert_arg (2, chunkname, 'string') end
     if (mode ~= nil) then utils.assert_arg (3, mode, 'string') end
 
+    --- @type Algorithm
+    local algorithm
+    --- @type Generator
+    local generator
+
     local global
     local global_mt
 
     local grammar = Grammar.new ()
-
     local ruler_mt = { __name = 'Ruler', __tostring = function () return 'RulerCreator' end }
     local token_mt = { __name = 'Token', __tostring = function () return 'TokenCreator' end }
 
@@ -118,6 +100,14 @@ do
 
     global =
       {
+        --- @type fun(name: string)
+        ---
+        algorithm = function (name)
+
+          assert (not algorithm, 'parser algorithm was already defined')
+          algorithm = pick ('algorithms', name, 'invalid algorithm \'%s\'')
+        end,
+
         --- @type fun(symbol: string | Symbol, assoc: Associativity)
         ---
         associative = function (symbol, assoc) grammar:associative (symbol, assoc) end,
@@ -125,6 +115,14 @@ do
         --- @type fun(...: string): any
         ---
         fail = function (...) return assert (io.stderr:write (... or '', '\n')) end,
+
+        --- @type fun(name: string)
+        ---
+        generator = function (name)
+
+          assert (not generator, 'parser generator was already defined')
+          generator = pick ('generators', name, 'invalid generator \'%s\'')
+        end,
 
         --- @type fun(...: Symbol): Symbol
         ---
@@ -160,7 +158,44 @@ do
 
     global._G = setmetatable (global, global_mt)
 
-    return loadCapture (global, grammar, compat.load (source, chunkname, mode, global))
+    local chunk, reason = compat.load (source, chunkname, mode, global)
+
+    if (not chunk) then return nil, reason
+    else
+
+      local success, result = xpcall (chunk, function (msg)
+
+        return debug.traceback (msg)
+      end)
+
+      if (not success) then return nil, result
+      else
+
+
+
+        local env = setmetatable ({}, { __index = global })
+        local main = global.main or (function ()
+
+          assert (algorithm ~= nil, 'parser algorithm was not defined')
+          assert (generator ~= nil, 'parser generator was not defined')
+
+          local table = env.algorithm.emit (env.grammar)
+          local parser = env.generator.emit (table)
+          env._ (parser)
+        end)
+
+        env._G = env
+        env.algorithm = algorithm
+        env.generator = generator
+        env.grammar = canonicalize (grammar)
+
+        return function (stdout)
+
+          env._ = function (...) assert (stdout:write (... or '', '\n')) end
+          return (compat.setfenv (main, env)) (stdout)
+        end
+      end
+    end
   end
 return templates
 end
