@@ -33,18 +33,18 @@ local List = require ('pl.List')
 --- @field values fun(self: Set): List
 local Set = require ('pl.Set')
 
---- @class Grammar
+--- @class Grammar: { [string]: Symbol }
 --- @field public associative fun(self: Grammar, symbol: string | Symbol, assoc: Associativity): Symbol
---- @field public initial fun(self: Grammar, symbol: Symbol): Symbol
---- @field public literal fun(self: Grammar, value: string): Symbol
+--- @field public initial fun(self: Grammar, symbol: NonTerminalSymbol): NonTerminalSymbol
+--- @field public literal fun(self: Grammar, value: string): TerminalSymbol
 --- @field private nextautomate integer
---- @field public nonterminal fun(self: Grammar, class: string): Symbol
+--- @field public nonterminal fun(self: Grammar, class: string): NonTerminalSymbol
 --- @field public precedence fun(self: Grammar, symbol: string | Symbol, value: integer): Symbol
 --- @field public produce fun(self: Grammar, symbol: Symbol, operand: Operand): Symbol, Operand
---- @field public restrict fun(self: Grammar, symbol: Symbol, values: string []): Symbol
+--- @field public restrict fun(self: Grammar, symbol: TerminalSymbol, values: string []): TerminalSymbol
 --- @field public symbol fun(self: Grammar, class: string): Symbol
 --- @field private symbols table<string, Symbol>
---- @field public token fun(self: Grammar, id: string): Symbol
+--- @field public token fun(self: Grammar, id: string): TerminalSymbol
 local Grammar = { }
 
 --- @alias Associativity 'left' | 'right'
@@ -105,7 +105,7 @@ do
 
         if (tablex.size (initials) ~= 1) then
 
-          return 'unusabe grammar'
+          return 'un-usabe grammar'
         else
 
           local initial = initials[tablex.keys (initials) [1]]
@@ -136,6 +136,109 @@ do
     end
 
     error ('WTF?')
+  end
+
+  --- @param self Grammar
+  --- @param productions? boolean # copy productions too
+  --- @return Grammar
+  function Grammar._copy (self, productions)
+
+    local eof = self.symbols.EOF
+    local out = Grammar.new ()
+
+    for id, symbol in pairs (self.symbols) do
+
+      local sym
+
+      if (not symbol.terminal) then
+
+        --- @cast symbol NonTerminalSymbol
+        sym = out:nonterminal (id)
+        sym.initial = symbol.initial
+      elseif (symbol ~= eof) then
+
+        --- @cast symbol TerminalSymbol
+
+        if (symbol.id ~= nil) then
+
+          sym = out:token (symbol.id)
+        else
+
+          assert (tablex.size (symbol.restrictions) == 1)
+
+          sym = out:literal (symbol.restrictions [1])
+        end
+
+        sym = out:restrict (sym, symbol.restrictions)
+      end if (sym ~= nil) then
+
+        sym.associativity = symbol.associativity
+        sym.precedence = symbol.precedence
+        sym.trigger = symbol.trigger
+      end
+    end
+
+    if (productions == true) then
+
+      local inner
+      local lookup = {}
+
+      for id, symbol in pairs (self.symbols) do
+
+        lookup[symbol] = assert (Grammar._get (out, id))
+      end
+
+      --- @param production Operand
+      --- @return Operand
+      ---
+      inner = function (production)
+
+        if (production.type == 'symbol') then
+
+          return lookup[production]
+        elseif (production.type == 'operator' and production.kind == '&') then
+
+          --- @cast production BinaryOperator
+          local op1 = inner (production.operand1)
+          local op2 = inner (production.operand2)
+          return op1 + op2
+        elseif (production.type == 'operator' and production.kind == '|') then
+
+          --- @cast production BinaryOperator
+          local op1 = inner (production.operand1)
+          local op2 = inner (production.operand2)
+          return op1 * op2
+        elseif (production.type == 'operator' and production.kind == '*') then
+
+          --- @cast production UnaryOperator
+          return inner (production.operand1) ^ 0
+        elseif (production.type == 'operator' and production.kind == '+') then
+
+          --- @cast production UnaryOperator
+          return inner (production.operand1) ^ 1
+        elseif (production.type == 'operator' and production.kind == '?') then
+
+          --- @cast production UnaryOperator
+          return inner (production.operand1) ^ -1
+        else
+
+          error (('unknown AST node %s'):format (production))
+        end
+      end
+
+      for _, symbol in pairs (self.symbols) do
+
+        if (not symbol.terminal) then
+
+          --- @cast symbol NonTerminalSymbol
+          tablex.foreachi (symbol.productions, function (p)
+
+            out:produce (lookup [symbol], inner (p))
+          end)
+        end
+      end
+    end
+    return out
   end
 
   --- @param self Grammar
@@ -244,7 +347,14 @@ do
         ---@diagnostic disable-next-line: invisible
         local sym = self.symbols[id]
 
-        return sym or self:restrict (_add (self, id, Ast.new ('symbol', nil, true)), { value })
+        if (sym ~= nil) then return sym
+        else
+
+          local s = _add (self, id, Ast.new ('symbol', nil, true))
+
+          --- @cast s TerminalSymbol
+          return self:restrict (s, { value })
+        end
       end
     end
 
@@ -402,7 +512,14 @@ do
               --- @cast t BinaryOperator
               local op1 = ast_mt.__tostring (t.operand1, true)
               local op2 = ast_mt.__tostring (t.operand2, true)
-              return ('(%s %s %s)'):format (op1, t.kind, op2)
+
+              if (t.kind == '&') then
+
+                return ('(%s %s)'):format (op1, op2)
+              elseif (t.kind == '|') then
+
+                return ('(%s | %s)'):format (op1, op2)
+              end
             end
           elseif (Ast.isTerminal (t)) then
 
@@ -422,7 +539,7 @@ do
             --- @cast t NonTerminalSymbol
             if (inline == true) then
 
-              return assert (t.id, 'non-terminal symbols must be classed')
+              return (assert (t.id, 'non-terminal symbols must be classed'))
             else
 
               local lines = List { }
@@ -441,10 +558,9 @@ do
               end
               return List.concat (lines, '\n')
             end
-          else
-
-            error (('unknown AST node: %s'):format (pretty.write (t)))
           end
+
+          error (('unknown AST node: %s'):format (pretty.write (t)))
         end,
       }
 
@@ -460,7 +576,7 @@ do
           return node
         end,
 
-        --- @type fun(self: Grammar, symbol: Symbol): Symbol
+        --- @type fun(self: Grammar, symbol: NonTerminalSymbol): NonTerminalSymbol
         ---
         initial = function (self, symbol)
 
@@ -478,17 +594,19 @@ do
           return node
         end,
 
-        --- @type fun(self: Grammar, value: string): Symbol
+        --- @type fun(self: Grammar, value: string): TerminalSymbol
         ---
         literal = function (self, value)
 
+          --- @type TerminalSymbol
           return _node (self, utils.assert_string (1, value))
         end,
 
-        --- @type fun(self: Grammar, class: string): Symbol
+        --- @type fun(self: Grammar, class: string): NonTerminalSymbol
         ---
         nonterminal = function (self, class)
 
+          --- @type NonTerminalSymbol
           return _add (self, class, Ast.newSymbol (class, false))
         end,
 
@@ -516,7 +634,7 @@ do
           return node, operand
         end,
 
-        --- @type fun(self: Grammar, symbol: Symbol, values: string []): Symbol
+        --- @type fun(self: Grammar, symbol: TerminalSymbol, values: string []): TerminalSymbol
         ---
         restrict = function (self, symbol, v)
 
@@ -533,9 +651,13 @@ do
         ---
         symbol = function (self, class) return Grammar._get (self, class) end,
 
-        --- @type fun(self: Grammar, id: string): Symbol
+        --- @type fun(self: Grammar, id: string): TerminalSymbol
         ---
-        token = function (self, id) return _add (self, id, Ast.new ('symbol', id, true)) end,
+        token = function (self, id)
+
+          --- @type TerminalSymbol
+          return _add (self, id, Ast.new ('symbol', id, true))
+        end,
 
         nextautomate = 1,
         symbols = { EOF = Ast.eof () },

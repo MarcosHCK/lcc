@@ -14,9 +14,10 @@
 -- You should have received a copy of the GNU General Public License
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
-algorithm ('lalr')
+algorithm ('lr')
 generator ('python')
 
+--[[
 BREAKLINE = token ()
 NUMBER = token ()
 
@@ -37,3 +38,15 @@ FILE = LINE ^ 0
 LINE = BREAKLINE * (EXPR + BREAKLINE)
 EXPR = NUMBER * (EXPR + 'n') * (EXPR + EXPR + OPERATOR)
 OPERATOR = literal '+' * '-' * '*' * '/' * '^'
+]]
+
+E = nonterminal ()
+S = nonterminal ()
+T = nonterminal ()
+n = token ()
+
+initial (S)
+
+S = E
+E = T * ('(' + E + ')')
+T = n * ('+' + T) * (T + '+' + n)

@@ -99,49 +99,18 @@ do
   ---
   local function canonicalize (in_)
 
-    local out = Grammar.new ()
+    local out = Grammar._copy (in_)
     local symbols = Grammar._filter (in_, function (id) return id ~= 'EOF' end)
     local eof = assert (Grammar._get (in_, 'EOF'))
     local lookup = Map { [eof] = assert (Grammar._get (out, 'EOF')) }
-    local initials = 0
 
     --- @cast eof EofSymbol
-
-    tablex.foreach (symbols, function (symbol, k)
-
-      --- @cast symbol Symbol
-      local sym
-
-      if (symbol.terminal) then
-
-        sym = out:token (k)
-        --- @cast sym TerminalSymbol
-        --- @cast symbol TerminalSymbol
-
-        out:restrict (sym, symbol.restrictions)
-
-      else
-
-        sym = out:nonterminal (k)
-        --- @cast sym NonTerminalSymbol
-        --- @cast symbol NonTerminalSymbol
-
-        sym.initial = symbol.initial
-        initials = not sym.initial and initials or 1 + initials
-
-      end do
-
-        lookup[symbol] = sym
-
-        sym.associativity = symbol.associativity
-        sym.precedence = symbol.precedence
-        sym.trigger = symbol.trigger
-
-      end
-    end)
-
     assert (eof ~= nil, 'this should not be happening')
-    assert (initials == 1, 'there should be exaclty one initial symbol in the grammar')
+
+    for id, symbol in pairs (symbols) do
+
+      lookup [symbol] = assert (Grammar._get (out, id))
+    end
 
     for id, symbol in pairs (symbols) do
 
@@ -159,7 +128,6 @@ do
         end
       end
     end
-
     return out
   end
 
