@@ -46,7 +46,7 @@ do
       return not e.terminal and e.initial == true
     end)
 
-    local eof = assert (grammar.EOF)
+    local eof = assert (grammar:symbol (Grammar.EOF))
     local nons = Grammar._filter (grammar, function (_, e) return not e.terminal end)
     local initial = assert (initials [tablex.keys (initials) [1]])
 

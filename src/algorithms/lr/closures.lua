@@ -85,14 +85,14 @@ do
         --- @cast first FirstSet
         got [symbol] = true
 
-        for i in ipairs (symbol.productions) do
+        for i in ipairs (symbol.productions or { }) do
 
           sym = nthSymbol (symbol, i, 1)
 
           --- @type Closure
           closure = not sym and closure or List.append (closure, { symbol, i })
 
-          if (sym ~= nil and sym.terminal) then
+          if (sym ~= nil and sym.terminal and not sym.epsilon) then
 
             first = first + Set { sym }
           elseif (sym ~= nil) then

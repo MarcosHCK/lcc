@@ -19,9 +19,13 @@ local pretty = require ('pl.pretty')
 local tablex = require ('pl.tablex')
 local utils = require ('pl.utils')
 
+local EOF = 'EOF'
+local EPSILON = 'EPSILON' -- shoild be ε
+
 --- @class List<T>: { [integer]: T }
 --- @field append fun(self: List, item: any)
 --- @field extend fun(self: List, other: List)
+--- @field index fun(self: List, item: any): integer?
 --- @field len fun(self: List): integer
 --- @field concat fun(self: List, sep?: string): string
 --- @field pop fun(self: List): any
@@ -33,7 +37,7 @@ local List = require ('pl.List')
 --- @field values fun(self: Set): List
 local Set = require ('pl.Set')
 
---- @class Grammar: { [string]: Symbol }
+--- @class Grammar
 --- @field public associative fun(self: Grammar, symbol: string | Symbol, assoc: Associativity): Symbol
 --- @field public initial fun(self: Grammar, symbol: NonTerminalSymbol): NonTerminalSymbol
 --- @field public literal fun(self: Grammar, value: string): TerminalSymbol
@@ -74,8 +78,11 @@ local Grammar = { }
 --- @class UnaryOperator: Operator
 --- @field public operand1 Operand
 
---- @class EofSymbol: Symbol
+--- @class EofSymbol: TerminalSymbol
 --- @field public eof boolean
+
+--- @class EpsilonSymbol: TerminalSymbol
+--- @field public epsilon boolean
 
 --- @class NonTerminalSymbol: Symbol
 --- @field public initial? boolean
@@ -88,11 +95,6 @@ do
 
   local grammar_mt =
     {
-      __index = function (self, k)
-
-        return Grammar._get (self, k)
-      end,
-
       __name = 'Grammar',
 
       __tostring = function (self)
@@ -143,7 +145,9 @@ do
   --- @return Grammar
   function Grammar._copy (self, productions)
 
-    local eof = self.symbols.EOF
+    local eof = self.symbols [EOF]
+    local epsilon = self.symbols [EPSILON]
+    local specials = List { eof, epsilon }
     local out = Grammar.new ()
 
     for id, symbol in pairs (self.symbols) do
@@ -155,7 +159,7 @@ do
         --- @cast symbol NonTerminalSymbol
         sym = out:nonterminal (id)
         sym.initial = symbol.initial
-      elseif (symbol ~= eof) then
+      elseif (List.index (specials, symbol) == nil) then
 
         --- @cast symbol TerminalSymbol
 
@@ -304,6 +308,20 @@ do
   end
 
   ---
+  --- Symbol for EOF terminal (end of file (or stream))
+  ---
+  --- @type string
+  ---
+  Grammar.EOF = EOF
+
+  ---
+  --- Symbol for ε terminal (empty string terminal)
+  ---
+  --- @type string
+  ---
+  Grammar.EPSILON = EPSILON
+
+  ---
   --- Creates a Symbols instance
   ---
   --- @return Grammar
@@ -450,12 +468,24 @@ do
     Ast.newTrigger = func.bind1 (Ast.new, 'operator')
 
     --- @type fun(): EofSymbol
+    ---
     Ast.eof = function ()
 
-      local symbol = Ast.newSymbol ('EOF', true)
+      local symbol = Ast.newSymbol (EOF, true)
 
       --- @cast symbol EofSymbol
         symbol.eof = true
+      return symbol
+    end
+
+    --- @type fun(): EpsilonSymbol
+    ---
+    Ast.epsilon = function ()
+
+      local symbol = Ast.newSymbol (EPSILON, true)
+
+      --- @cast symbol EpsilonSymbol
+        symbol.epsilon = true
       return symbol
     end
 
@@ -660,7 +690,7 @@ do
         end,
 
         nextautomate = 1,
-        symbols = { EOF = Ast.eof () },
+        symbols = { [EOF] = Ast.eof (), [EPSILON] = Ast.epsilon () },
       }
 
     return setmetatable (grammar, grammar_mt)

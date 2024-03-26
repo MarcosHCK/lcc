@@ -17,27 +17,24 @@
 local Grammar = require ('templates.grammar')
 local List = require ('pl.List')
 local Map = require ('pl.Map')
-local Set = require ('pl.Set')
-local tablex  = require('pl.tablex')
 
 do
-
   --- @param out Grammar
   --- @param lookup table<Symbol, Symbol>
-  --- @param eof EofSymbol
+  --- @param epsilon EpsilonSymbol
   --- @param symbol NonTerminalSymbol
   --- @param production Operand
   --- @param inner? boolean
   --- @return List<Operand> tails
   ---
-  local function breakdown (out, lookup, eof, symbol, production, inner)
+  local function breakdown (out, lookup, epsilon, symbol, production, inner)
 
     if (not inner) then
 
       local tails
 
       inner = true
-      tails = breakdown (out, lookup, eof, symbol, production, inner)
+      tails = breakdown (out, lookup, epsilon, symbol, production, inner)
 
       for _, tail in ipairs (tails) do
 
@@ -50,22 +47,33 @@ do
     elseif (production.type == 'operator' and production.kind == '&') then
 
       --- @cast production BinaryOperator
-      local tails1 = breakdown (out, lookup, eof, symbol, production.operand1, inner)
-      local tails2 = breakdown (out, lookup, eof, symbol, production.operand2, inner)
+      local tails1 = breakdown (out, lookup, epsilon, symbol, production.operand1, inner)
+      local tails2 = breakdown (out, lookup, epsilon, symbol, production.operand2, inner)
       local tails = List { }
 
-      for _, tail1 in ipairs (tails1) do
-      for _, tail2 in ipairs (tails2) do
+      local empty1 = List.len (tails1) == List.len (List.filter (tails1, function (e) return e.epsilon == true end))
+      local empty2 = List.len (tails2) == List.len (List.filter (tails2, function (e) return e.epsilon == true end))
+      local onempty = empty1 or empty2
 
-        List.append (tails, tail1 + tail2)
-      end end
+      if (onempty) then
+
+        List.extend (tails, empty2 and tails1 or tails2)
+
+      else
+
+        for _, tail1 in ipairs (tails1) do
+        for _, tail2 in ipairs (tails2) do
+
+          List.append (tails, tail1 + tail2)
+        end end
+      end
       return tails
     elseif (production.type == 'operator' and production.kind == '|') then
 
       --- @cast production BinaryOperator
       local tails = List {}
-      List.extend (tails, breakdown (out, lookup, eof, symbol, production.operand1, inner))
-      List.extend (tails, breakdown (out, lookup, eof, symbol, production.operand2, inner))
+      List.extend (tails, breakdown (out, lookup, epsilon, symbol, production.operand1, inner))
+      List.extend (tails, breakdown (out, lookup, epsilon, symbol, production.operand2, inner))
       return tails
     elseif (production.type == 'operator' and production.kind == '*') then
 
@@ -73,18 +81,18 @@ do
       local tails
       local temp = Grammar._automate (out)
 
-      tails = breakdown (out, lookup, eof, symbol, production.operand1, inner)
-      tails = List.append (List.map (tails, function (e) return e + temp end), lookup[eof])
+      tails = breakdown (out, lookup, epsilon, symbol, production.operand1, inner)
+      tails = List.append (List.map (tails, function (e) return e + temp end), lookup[epsilon])
       List.foreach (tails, function (e) out:produce (temp, e) end)
       return List { temp }
     elseif (production.type == 'operator' and production.kind == '+') then
 
       --- @cast production UnaryOperator
-      return breakdown (out, lookup, eof, symbol, production.operand1 + production.operand1 ^ 0, inner)
+      return breakdown (out, lookup, epsilon, symbol, production.operand1 + production.operand1 ^ 0, inner)
     elseif (production.type == 'operator' and production.kind == '?') then
 
       --- @cast production UnaryOperator
-      return breakdown (out, lookup, eof, symbol, production.operand1 * eof, inner)
+      return breakdown (out, lookup, epsilon, symbol, production.operand1 * epsilon, inner)
     else
 
       error (('unknown AST node %s'):format (production))
@@ -100,12 +108,11 @@ do
   local function canonicalize (in_)
 
     local out = Grammar._copy (in_)
-    local symbols = Grammar._filter (in_, function (id) return id ~= 'EOF' end)
-    local eof = assert (Grammar._get (in_, 'EOF'))
-    local lookup = Map { [eof] = assert (Grammar._get (out, 'EOF')) }
+    local symbols = Grammar._filter (in_, function () return true end)
+    local epsilon = assert (Grammar._get (in_, Grammar.EPSILON))
+    local lookup = Map { }
 
-    --- @cast eof EofSymbol
-    assert (eof ~= nil, 'this should not be happening')
+    --- @cast epsilon EpsilonSymbol
 
     for id, symbol in pairs (symbols) do
 
@@ -124,7 +131,7 @@ do
         for _, production in ipairs (symbol.productions or {}) do
 
           --- @cast production Operand
-          breakdown (out, lookup, eof, sym, production)
+          breakdown (out, lookup, epsilon, sym, production)
         end
       end
     end
