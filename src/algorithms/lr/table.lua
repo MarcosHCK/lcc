@@ -39,12 +39,13 @@ do
   --- @param nthSymbol NthFunc
   --- @param Goto Goto
   --- @param Item Item
+  --- @param Items Items
   --- @param eof EofSymbol
   --- @param initial NonTerminalSymbol
   --- @param symbols table<string, Symbol>
   --- @return Table
   ---
-  function constructor (nthSymbol, Goto, Item, eof, initial, symbols)
+  function constructor (nthSymbol, Goto, Item, Items, eof, initial, symbols)
 
     --- @class Table
     local Table = { }
@@ -58,7 +59,7 @@ do
     end
 
     ---
-    --- @param items List<ItemLR1>
+    --- @param items Item[]
     --- @param actions Actions
     --- @param gotos Gotos
     --- @return string
@@ -84,7 +85,7 @@ do
         lines = List.append (lines, '+' .. string.rep ('-', line:len () - 2) .. '+')
       end
 
-      for state = 1, List.len (items) do
+      for state in Items.iter (items) do
 
         local bits = { vh (tostring (state)) }
 
@@ -106,15 +107,15 @@ do
     end
 
     ---
-    --- @param s0 ItemLR1
-    --- @return ItemLR1[] items
+    --- @param s0 Item
+    --- @return Item[] items
     --- @return Actions action_table
     --- @return Gotos goto_table
     ---
     function Table.new (s0)
 
       local gotor = Map { }
-      local items = List { s0 }
+      local items = Items.new { s0 }
       local kur = 2
 
       --
@@ -122,11 +123,12 @@ do
       --
 
       do
-        local i, item = nil, nil
 
-        while true do
+        local i, item = 1, nil
 
-          i, item = next (items, i)
+        repeat
+
+          i, item = i + 1, items [i]
 
           if (item ~= nil) then
 
@@ -135,9 +137,9 @@ do
               local goto_ = Goto [{ item, symbol }]
               local k
 
-              if (List.len (goto_) > 0) then
+              if (Item.size (goto_) > 0) then
 
-                k = tablex.find_if (items, Item.equ, goto_)
+                k = Items.index (items, goto_)
                 gotor [i] = gotor [i] or Map { }
 
                 if (k ~= nil) then
@@ -146,16 +148,15 @@ do
                 else
 
                   gotor [i] [symbol] = kur
-                  i = nil
-                  items = List.append (items, goto_)
+
+                  i, items = 1, Items.add (items, goto_)
                   kur = kur + 1
                 break end
               end
             end
-          else break end
-        end
-
-        for j = 1, List.len (items) do gotor [j] = gotor [j] or Map { } end
+          else break
+          end
+        until (not true)
       end
 
       local actions = Map { }
@@ -165,7 +166,7 @@ do
       -- Fill ACTION and GOTO tables
       --
 
-      for i, item in ipairs (items) do
+      for i, item in Items.iter (items) do
 
         actions [i] = Map { }
         gotos [i] = Map { }
@@ -174,19 +175,19 @@ do
 
           if (not symbol.terminal) then
 
-            if (gotor [i] [symbol] ~= nil) then
+            if (gotor [i] ~= nil and gotor [i] [symbol] ~= nil) then
 
               gotos [i] [symbol] = gotor [i] [symbol]
             end
           end
         end
 
-        for j, rule in ipairs (item) do
+        for j, rule in Item.iter (item) do
 
           local base, nprod, at, _, t = utils.unpack (rule)
           local symbol = nthSymbol (base, nprod, at)
 
-          if (symbol ~= nil and symbol.terminal and gotor [i] [symbol] ~= nil) then
+          if (symbol ~= nil and symbol.terminal and gotor [i] ~= nil and gotor [i] [symbol] ~= nil) then
 
             actions [i] [symbol] = Action.serialize ('shift', gotor [i] [symbol])
           elseif (not symbol and base == initial and t == eof) then

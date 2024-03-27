@@ -24,7 +24,7 @@ local constructor
 --- @module 'algorithms.lr.item'
 
 --- @alias Goto table<GotoOn, ItemLR1Rule[]>
---- @class GotoOn: { [1]: ItemLR1, [2]: Symbol }
+--- @class GotoOn: { [1]: Item, [2]: Symbol }
 
 do
   ---
@@ -35,22 +35,23 @@ do
   ---
   function constructor (nthSymbol, Closure, Item)
 
-    --- @param item ItemLR1
+    --- @param item_ Item
     --- @param x TerminalSymbol
     --- @return ItemLR1Rule[]
     ---
-    local function expand (item, x)
+    local function expand (item_, x)
 
+      local item = utils.assert_arg (1, item_, 'table', Item.is, 'not an Item')
       local result = Item.new ()
 
-      for _, rule in ipairs (item) do
+      for _, rule in Item.iter (item) do
 
-        local base, nprod, at, _, t = utils.unpack (rule)
+        local base, nprod, at, kk, t = utils.unpack (rule)
         local symbol = nthSymbol (base, nprod, at)
 
         if (symbol == x) then
 
-          result = List.append (result, Item.rulelr1 (base, nprod, at + 1, true, t))
+          result = Item.add (result, Item.rulelr1 (base, nprod, at + 1, true, t))
         end
       end
       return Closure [result]

@@ -23,7 +23,7 @@ local constructor
 --- @module 'algorithms.lr.first'
 --- @module 'algorithms.lr.item'
 
---- @alias Closure table<ItemLR1, ItemLR1>
+--- @alias Closure table<Item, Item>
 
 do
   ---
@@ -34,10 +34,10 @@ do
   ---
   function constructor (nthSymbol, First, Item)
 
-    --- @param item ItemLR1
+    --- @param item Item
     --- @param rule ItemLR1Rule
     --- @param changed boolean
-    --- @return ItemLR1 item
+    --- @return Item item
     --- @return boolean updated
     ---
     local function update (item, rule, changed)
@@ -46,18 +46,21 @@ do
       return result, added or changed
     end
 
-    --- @param item ItemLR1
-    --- @return ItemLR1 closed_item
+    --- @param item_ Item
+    --- @return Item closed_item
     ---
-    local function expand (item)
+    local function expand (item_)
 
-      local result = List (item)
+      local item = utils.assert_arg (1, item_, 'table', Item.is, 'not an Item')
+      local result = Item.new ()
+
+      for _, rule in Item.iter (item) do Item.add (result, rule) end
 
       repeat
 
         local changed = false
 
-        for _, rule in ipairs (result) do
+        for _, rule in Item.iter (result) do
 
           local base, nprod, at, _, t = utils.unpack (rule)
           local symbol = nthSymbol (base, nprod, at)

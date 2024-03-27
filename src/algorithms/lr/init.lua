@@ -80,17 +80,16 @@ do
       return nth == nil and line or line [nth]
     end
 
-    --initial = grammar:symbol 'G'
-
-    --- @type table<string, Symbol>
     local symbols = Grammar._filter (grammar, function (_, e) return e ~= epsilon end)
-    local First = require ('algorithms.lr.first') (linesof, epsilon, symbols)
     local Item = require ('algorithms.lr.item') (linesof)
+    local Items = require ('algorithms.lr.items') (Item)
+    local First = require ('algorithms.lr.first') (linesof, epsilon, symbols)
     local Closure = require ('algorithms.lr.closure') (nthSymbol, First, Item)
     local Goto = require ('algorithms.lr.goto') (nthSymbol, Closure, Item)
-    local Table = require ('algorithms.lr.table') (nthSymbol, Goto, Item, eof, initial, symbols)
+    local Table = require ('algorithms.lr.table') (nthSymbol, Goto, Item, Items, eof, initial, symbols)
     local s0 = Closure [ Item.new { Item.rulelr1 (initial, 1, 1, true, eof) } ]
     local items, actions, gotos = Table.new (s0)
+
     print (Table.write (items, actions, gotos))
     return {}
   end
