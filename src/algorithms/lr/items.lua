@@ -43,7 +43,7 @@ do
     local meta =
       {
         __hash = function (self) return '{' .. table.concat (OrderedMap.keys (self.store), ',') .. '}' end,
-        __index = function (self, k) return self.store [OrderedMap.keys (self.store) [k]] end,
+        __index = function (self, k) return Items[k] or self.store [OrderedMap.keys (self.store) [k]] end,
         __name = 'Items',
         __tostring = function (self) return tostring (OrderedMap.values (self.store)) end
       }

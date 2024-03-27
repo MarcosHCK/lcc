@@ -21,3 +21,9 @@
 --- @field emit fun(grammar: Grammar): ParserTable
 
 --- @class ParserTable
+--- @field items List<ParserTableItem>
+--- @field actions table<integer, table<TerminalSymbol, integer>>
+--- @field gotos table<integer, table<NonTerminalSymbol, integer>>
+
+--- @class ParserTableItem: List<ParserTableItem>
+--- @class ParserTableRule: { [1]: NonTerminalSymbol, [2]: integer, [3]: integer, [4]: boolean, [5]: TerminalSymbol }

@@ -48,7 +48,16 @@ do
   function constructor (nthSymbol, Goto, Item, Items, eof, initial, symbols)
 
     --- @class Table
+    --- @field public items Items
+    --- @field public actions Actions
+    --- @field public gotos Gotos
     local Table = { }
+
+    local meta =
+      {
+        __name = 'TableLR1',
+        __tostring = function (self) return Table.write (self) end,
+      }
 
     local function sorts (id1, id2)
 
@@ -59,14 +68,16 @@ do
     end
 
     ---
-    --- @param items Item[]
-    --- @param actions Actions
-    --- @param gotos Gotos
+    --- @param colspan? integer
+    --- @param vhspan? integer
     --- @return string
     ---
-    function Table.write (items, actions, gotos, colspan, vhspan)
+    function Table:write (colspan, vhspan)
 
       local lines = { }
+      local items = self.items
+      local actions = self.actions
+      local gotos = self.gotos
 
       colspan = not colspan and 13 or utils.assert_arg (4, colspan, 'number')
       vhspan = not vhspan and 3 or utils.assert_arg (5, vhspan, 'number')
@@ -108,9 +119,7 @@ do
 
     ---
     --- @param s0 Item
-    --- @return Item[] items
-    --- @return Actions action_table
-    --- @return Gotos goto_table
+    --- @return Table
     ---
     function Table.new (s0)
 
@@ -161,6 +170,7 @@ do
 
       local actions = Map { }
       local gotos = Map { }
+      local states = List { }
 
       --
       -- Fill ACTION and GOTO tables
@@ -199,7 +209,7 @@ do
           end
         end
       end
-      return items, actions, gotos
+      return setmetatable ({ items = items, actions = actions, gotos = gotos }, meta)
     end
     return Table
   end

@@ -26,7 +26,7 @@ do
   ---
   function generator.emit (table_)
 
-    return require ('pl.pretty').write (table_)
+    return tostring (table_)
   end
 return generator
 end

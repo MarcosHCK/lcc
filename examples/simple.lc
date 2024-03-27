@@ -17,145 +17,17 @@
 algorithm ('lr')
 generator ('python')
 
-ARGS = nonterminal ()
-BINDING = nonterminal ()
-BLOCK = nonterminal ()
-CHUNK = nonterminal ()
-COND = nonterminal ()
-CONDLIST = nonterminal ()
-CONDS = nonterminal ()
-DOTTEDNAME = nonterminal ()
-EXP = nonterminal ()
-EXPLIST1 = nonterminal ()
-EXPLIST23 = nonterminal ()
-FIELD = nonterminal ()
-FIELDLIST = nonterminal ()
-FUNCBODY = nonterminal ()
-FUNCNAME = nonterminal ()
-FUNCTION = nonterminal ()
-FUNCTIONCALL = nonterminal ()
-LASTSTAT = nonterminal ()
-NAMELIST = nonterminal ()
-PARAMS = nonterminal ()
-PARLIST = nonterminal ()
-PREFIXEXP = nonterminal ()
-REPETITION = nonterminal ()
-SCOPE = nonterminal ()
-SEMI = nonterminal ()
-SETLIST = nonterminal ()
-STAT = nonterminal ()
-STATLIST = nonterminal ()
-TABLECONSTRUCTOR = nonterminal ()
-UBLOCK = nonterminal ()
-VAR = nonterminal ()
+G = nonterminal ()
+E = nonterminal ()
+T = nonterminal ()
+F = nonterminal ()
+n = token ()
 
-NAME = token ()
-NUMBER = token ()
-STRING = token ()
+initial (G)
 
-initial (CHUNK)
-
-CHUNK = BLOCK
-
-SEMI = literal ';' ^ -1
-
-BLOCK = SCOPE + STATLIST
-BLOCK = SCOPE + STATLIST + LASTSTAT + SEMI
-UBLOCK = BLOCK + 'until' + EXP
-
-SCOPE = (SCOPE + STATLIST + BINDING + SEMI) ^ -1
-
-STATLIST = (STATLIST + STAT + SEMI) ^ -1
-
-STAT = literal 'do' + BLOCK + 'end'
-STAT = literal 'while' + EXP + 'do' + BLOCK + 'end'
-STAT = REPETITION + 'do' + BLOCK + 'end'
-STAT = literal 'repeat' + UBLOCK
-STAT = literal 'if' + COND + 'end'
-STAT = literal 'function' + FUNCNAME + FUNCBODY
-STAT = SETLIST + '=' + EXPLIST1
-STAT = FUNCTIONCALL
-
-REPETITION = literal 'for' + NAME + '=' + EXPLIST23
-REPETITION = literal 'for' + NAMELIST + 'in' + EXPLIST1
-
-CONDS = CONDLIST
-CONDS = CONDLIST + 'else' + BLOCK
-CONDLIST = COND
-CONDLIST = CONDLIST + 'elseif' + COND
-COND = EXP + 'then' + BLOCK
-
-LASTSTAT = literal 'break'
-LASTSTAT = literal 'return'
-LASTSTAT = literal 'return' + EXPLIST1
-
-BINDING = literal 'local' + NAMELIST
-BINDING = literal 'local' + NAMELIST + '=' + EXPLIST1
-BINDING = literal 'local' + 'function' + NAME + FUNCBODY
-
-FUNCNAME = DOTTEDNAME
-FUNCNAME = DOTTEDNAME + ':' + NAME
-
-DOTTEDNAME = NAME
-DOTTEDNAME = DOTTEDNAME + '.' + NAME
-
-NAMELIST = NAME
-NAMELIST = NAMELIST + ',' + NAME
-
-EXPLIST1 = EXP
-EXPLIST1 = EXPLIST1 + ',' + EXP
-EXPLIST23 = EXP + ',' + EXP
-EXPLIST23 = EXP + ',' + EXP + ',' + EXP
-
-EXP = literal 'nil' * 'true' * 'false' * NUMBER * STRING * '...'
-EXP = FUNCTION
-EXP = PREFIXEXP
-EXP = TABLECONSTRUCTOR
-EXP = literal 'not' * '#' * ('-' + EXP)
-EXP = EXP + 'or' + EXP
-EXP = EXP + 'and' + EXP
-EXP = EXP + (literal '<' + '<=' + '>' + '>=' + '==' + '~=') + EXP
-EXP = EXP + '..' + EXP
-EXP = EXP + (literal '+' + '-') + EXP
-EXP = EXP + (literal '*' + '/' + '%') + EXP
-EXP = EXP + (literal '^') + EXP
-
-SETLIST = VAR
-SETLIST = SETLIST + ',' + VAR
-
-VAR = NAME
-VAR = PREFIXEXP + '[' + EXP + ']'
-VAR = PREFIXEXP + '.' + NAME
-
-PREFIXEXP = VAR
-PREFIXEXP = FUNCTIONCALL
-PREFIXEXP = '(' + EXP + ')'
-
-FUNCTIONCALL = PREFIXEXP + ARGS
-FUNCTIONCALL = PREFIXEXP + ':' + NAME + ARGS
-
-ARGS = literal '(' + ')'
-ARGS = literal '(' + EXPLIST1 + ')'
-ARGS = TABLECONSTRUCTOR
-ARGS = STRING
-
-FUNCTION = 'function' + FUNCBODY
-
-FUNCBODY = PARAMS + BLOCK + 'end'
-
-PARAMS = literal '(' + PARLIST + ')'
-
-PARLIST = NAMELIST ^ -1
-PARLIST = literal '...'
-PARLIST = NAMELIST + ',' + '...'
-
-TABLECONSTRUCTOR = literal '{' + '}'
-TABLECONSTRUCTOR = literal '{' + FIELDLIST + '}'
-TABLECONSTRUCTOR = literal '{' + FIELDLIST + (literal ',' * ';') + '}'
-
-FIELDLIST = FIELD
-FIELDLIST = FIELDLIST + (literal ',' * ';') + FIELD
-
-FIELD = EXP
-FIELD = NAME + '=' + EXP
-FIELD = '[' + EXP + ']' + '=' + EXP
+G = E
+E = T + '-' + E
+E = T
+T = F + '*' + T
+T = F
+F = n

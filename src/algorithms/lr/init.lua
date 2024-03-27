@@ -88,10 +88,9 @@ do
     local Goto = require ('algorithms.lr.goto') (nthSymbol, Closure, Item)
     local Table = require ('algorithms.lr.table') (nthSymbol, Goto, Item, Items, eof, initial, symbols)
     local s0 = Closure [ Item.new { Item.rulelr1 (initial, 1, 1, true, eof) } ]
-    local items, actions, gotos = Table.new (s0)
 
-    print (Table.write (items, actions, gotos))
-    return {}
+    ---@diagnostic disable-next-line: return-type-mismatch
+    return Table.new (s0)
   end
   return algorithm
 end
