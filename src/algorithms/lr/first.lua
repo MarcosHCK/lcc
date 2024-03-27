@@ -35,30 +35,26 @@ do
     local First = {}
 
     --- @type table<Symbol, Set<TerminalSymbol>>
-    local firstof = {}
-
-    for _, symbol in pairs (symbols) do
-
-      if (symbol.terminal) then
-
-        firstof [symbol] = Set { symbol }
-      else
-
-        firstof [symbol] = Set { }
-      end
-    end
+    local firstof = { }
 
     --- @param key Symbol | Symbol[]
     --- @return Set<TerminalSymbol>
     ---
     local function lookup (key)
 
-      if (key [1]) then
+      if (key.type) then
 
-        return firstof [key [1]]
+        return firstof [key]
       else
 
-        return firstof [key [1]] or firstof [key]
+        for _, symbol in ipairs (key) do
+
+          if (symbol ~= epsilon) then
+
+            return firstof [symbol]
+          end
+        end
+      return Set { }
       end
     end
 
@@ -75,54 +71,65 @@ do
         return set1, changed
       else
 
-        return set1 + (set2 - Set { epsilon }), true
+        return set1 + set2, true
+      end
+    end
+
+    local stack = List { }
+
+    for _, symbol in pairs (symbols) do
+
+      if (symbol.terminal) then
+
+        firstof [symbol] = Set { symbol }
+      else
+
+        firstof [symbol] = Set { }
+        stack = List.append (stack, symbol)
       end
     end
 
     repeat
 
       local changed = false
+      local X = List.pop (stack)
 
-      for a, lines in pairs (linesof) do
+      --- @cast X NonTerminalSymbol
 
-        for _, line in ipairs (lines) do
+      for j in pairs (X.productions or { }) do
 
-          local b1 = line [1]
-          local bk = line [List.len (line)]
+        local P = linesof [X] [j] [1]
+        local b = 2
 
-          if (b1 ~= nil and b1 ~= epsilon) then
+        repeat
 
-            local sa = firstof [a]
-            local sb1 = firstof [b1]
+          local another = false
 
-            firstof [a], changed = update (sa, sb1, changed)
-          end
+          if (P == epsilon) then
 
-          for i = 1, List.len (line) - 1 do
+            firstof [X], changed = update (firstof [X], Set { epsilon })
+          elseif (P ~= nil and P.terminal) then
 
-            local sa = firstof [a]
-            local bi, bip = line [i], line [i + 1]
-            local sbi, sbip = firstof [bi], firstof [bip]
+            firstof [X], changed = update (firstof [X], firstof [P], changed)
+          elseif (P ~= nil and P ~= X) then
 
-            if (bi ~= epsilon and sbi [epsilon]) then
+            firstof [X], changed = update (firstof [X], firstof [P] - Set { epsilon }, changed)
+          elseif (P ~= nil and firstof [P] [epsilon]) then
 
-              firstof [a], changed = update (sa, sbip, changed)
+            local B = linesof [X] [j] [b]
+
+            if (B ~= nil and not B.terminal) then
+
+              P = B
+              b = b + 1
+              another = true
             end
           end
-
-          if (bk ~= nil and firstof [bk] [epsilon]) then
-
-            local sa = firstof [a]
-
-            if (not sa [epsilon]) then
-
-              changed = true
-              firstof [a] = sa + Set { epsilon }
-            end
-          end
-        end
+        until (not another)
       end
-    until (not changed)
+
+      if (changed or Set.len (firstof [X]) == 0) then stack = List.insert (stack, 1, X) end
+    until (List.len (stack) == 0)
 
     return setmetatable (First, { __index = function (_, k) return lookup (k) end })
   end
