@@ -47,7 +47,7 @@ do
 
     local lines = { }
 
-    for i, production in ipairs (from.productions) do
+    for i, production in ipairs (from.productions or { }) do
 
       local j = 0
       lines[i] = { }

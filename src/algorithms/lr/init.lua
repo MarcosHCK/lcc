@@ -84,7 +84,7 @@ do
     local closuresof, firstsof = ClosuresOf.new (nthSymbol, nons)
 
     local Follow = require ('algorithms.lr.follow') (nthSymbol, linesof, firstsof, initial, eof)
-    local Item = require ('algorithms.lr.item') (nthSymbol, closuresof, Follow)
+    local Item = require ('algorithms.lr.item') (nthSymbol, firstsof, closuresof, Follow)
 
     print (closuresof)
     print (firstsof)
@@ -99,6 +99,7 @@ do
 
       print (('rule0 (%d): %s %d %s'):format (i, ('%s -> %s'):format (s (rule [1]), s (rule [1].productions [rule [2]])), rule [3], rule [4] and 'kernel' or 'closure'))
     end
+
     for _, symbol in pairs (nons) do
 
       --- @param e Ast
@@ -106,16 +107,18 @@ do
 
       print (('follow (%s): %s'):format (s (symbol), tostring (Follow.new (itemlr0, symbol))))
     end
-    for i, rulek in ipairs (itemlr1) do
 
-      local rule, T = utils.unpack (rulek)
-      --- @param e Ast
-      local s = function (e) return getmetatable (eof).__tostring (e, true) end
+    for j, next in ipairs (Item.spawn (initial)) do
 
-      print (('rulek (%d): %s; %d %s'):format (i, ('%s -> %s, %s'):format (s (rule [1]), s (rule [1].productions [rule [2]]), tostring (T)), rule [3], rule [4] and 'kernel' or 'closure'))
+      for i, rule in ipairs (next) do
+
+        --- @param e Ast
+        local s = function (e) return getmetatable (eof).__tostring (e, true) end
+
+        print (('(%d) rulelr1 (%d): %s; %d %s'):format (j, i, ('%s -> %s, %s'):format (s (rule [1]), s (rule [1].productions [rule [2]]), tostring (rule[5])), rule [3], rule [4] and 'kernel' or 'closure'))
+      end
     end
 
-    print (grammar)
     return {}
   end
   return algorithm

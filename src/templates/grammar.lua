@@ -296,7 +296,7 @@ do
 
     while (List.len (nexts) > 0) do
 
-      for _, p in ipairs (List.pop (nexts).productions) do
+      for _, p in ipairs (List.pop (nexts).productions or { }) do
 
         local news = Set.union (nons, collectNons (Ast, p))
 
