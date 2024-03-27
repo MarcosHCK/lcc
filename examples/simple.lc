@@ -40,6 +40,7 @@ EXPR = NUMBER * (EXPR + 'n') * (EXPR + EXPR + OPERATOR)
 OPERATOR = literal '+' * '-' * '*' * '/' * '^'
 ]]
 
+--[[
 E = nonterminal ()
 S = nonterminal ()
 T = nonterminal ()
@@ -50,3 +51,29 @@ initial (S)
 S = E
 E = T * ('(' + E + ')')
 T = n * ('+' + T) * (T + '+' + n)
+]]
+
+--[[
+G = nonterminal ()
+N = nonterminal ()
+
+initial (G)
+
+G = N
+N = ('$' + N) * '$'
+]]
+
+G = nonterminal ()
+E = nonterminal ()
+T = nonterminal ()
+F = nonterminal ()
+ident = token ()
+
+initial (G)
+
+G = E
+E = T + '-' + E
+E = T
+T = F + '*' + T
+T = F
+F = ident

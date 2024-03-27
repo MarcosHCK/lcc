@@ -15,12 +15,10 @@
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
 local List = require ('pl.List')
-local Set = require ('pl.Set')
-local tablex = require ('pl.tablex')
 local utils = require ('pl.utils')
 
---- @type ParamConstructor
-local constructor = {}
+--- @type SetConstructor<Item>
+local constructor
 
 --- @class ItemLR0: ItemLR0Rule[]
 --- @class ItemLR1: ItemLR1Rule[]
@@ -30,87 +28,105 @@ local constructor = {}
 
 do
 
-  --- @param nthSymbol NthFunc
-  --- @param closuresof ClosuresOf
-  --- @param Follow Follow
+  --- @param linesof LinesOf
   --- @return Item
   ---
-  function constructor (nthSymbol, firstsof, closuresof, Follow)
+  function constructor (linesof)
 
-    --- @class Item: ParamInstance
+    --- @class Item
     local Item = {}
 
-    --- @param seed ItemLR0
-    --- @return ItemLR0 item
-    ---
-    function Item.lr0 (seed)
+    local rule_mt =
+      {
+        __eq = function (item1, item2)
 
-      local result = List {}
+          local eq_base = item1 [1] == item2 [1]
+          local eq_nprod = item1 [2] == item2 [2]
+          local eq_at = item1 [3] == item2 [3]
+          local eq_lookahead = item1 [5] == item2 [5]
 
-      for _, rule in ipairs (seed) do
+          return eq_base and eq_nprod and eq_at and eq_lookahead
+        end,
 
-        local base, nprod, at = utils.unpack (rule)
-        local sym = nthSymbol (base, nprod, at)
+        __name = 'ItemRule',
 
-        result = List.append (result, Item.rulelr0 (base, nprod, at, true))
+        __tostring = function (item)
 
-        if (sym ~= nil and not sym.terminal) then
+          local base = item [1]
+          local nprod = item [2]
+          local at = item [3]
+          local kernel = item [4]
+          local lookahead = item [5]
 
-          local closure
-          closure = assert (closuresof [sym])
-          result = List.extend (result, tablex.imap (function (e) return Item.rulelr0 (e[1], e[2], 1, false) end, closure))
+          local meta = getmetatable (base).__tostring
+          local tostr = function (e) return meta (e, true) end
+
+          local look = not lookahead and '' or ', ' .. tostr (lookahead)
+          local prods = List.map (linesof [base] [nprod], tostr)
+          local prod = table.concat (List.insert (prods, at, '•'), ' ')
+          local state = not kernel and '' or '*'
+
+          return ('[%s -> %s%s]%s'):format (tostr (base), prod, look, state)
         end
+      }
+
+    --- @generic T: ItemLR0Rule | ItemLR1Rule
+    --- @param self List<T>
+    --- @param other T
+    --- @return List<T> self
+    --- @return boolean was_added
+    ---
+    function Item.add (self, other)
+
+      if (Item.has (self, other)) then
+
+        return self, false
+      else
+
+        return List.append (self, other), true
       end
-      return result
     end
 
-    --- @param item ItemLR0
-    --- @return ItemLR1 item
+    --- @generic T: ItemLR0Rule | ItemLR1Rule
+    --- @param self List<T>
+    --- @param other List<T>
+    --- @return boolean was_added
     ---
-    function Item.lr1 (item)
+    function Item.equ (self, other)
 
-      local result = List { }
+      if (List.len (self) ~= List.len (other)) then
 
-      for _, rule in ipairs (item) do
+        return false
+      else
 
-        local base, nprod, at, kernel = utils.unpack (rule)
-        local follow = firstsof ()
+        for _, item in ipairs (self) do
 
-        for terminal in pairs (follow) do
-
-          result = List.append (result, Item.rulelr1 (base, nprod, at, kernel, terminal))
+          if (not Item.has (other, item)) then return false end
         end
+        return true
       end
-      return result
     end
 
-    --- @param item ItemLR0
-    --- @return ItemLR0[] seeds
+    --- @generic T: ItemLR0Rule | ItemLR1Rule
+    --- @param self List<T>
+    --- @param other T
+    --- @return boolean
     ---
-    function Item.next (item)
+    function Item.has (self, other)
 
-      --- @type table<NonTerminalSymbol, List<ItemLR0Rule>>
-      local groups = { }
-
-      for _, rule in ipairs (item) do
-
-        local base, nprod, at = utils.unpack (rule)
-        local symbol = nthSymbol (base, nprod, at)
-
-        if (symbol ~= nil) then
-
-          local group = groups [symbol] or List { }
-
-          groups [symbol] = List.append (group, tablex.copy (rule))
-        end
+      for _, item in ipairs (self) do
+        if (item == other) then return true end
       end
+      return false
+    end
 
-      for _, rules in pairs (groups) do
-      for _, rule in ipairs (rules) do
+    --- @generic T: ItemLR0Rule | ItemLR1Rule
+    --- @param ... T
+    --- @return List<T>
+    ---
+    function Item.new (...)
 
-        rule[3] = rule[3] + 1
-      end end
-      return tablex.values (groups)
+      return List (...)
     end
 
     --- @param base NonTerminalSymbol
@@ -125,7 +141,7 @@ do
       utils.assert_arg (2, nprod, 'number', function (n) return n == math.floor (n) end, 'not an integer')
       utils.assert_arg (3, at, 'number', function (n) return n == math.floor (n) end, 'not an integer')
       kernel = kernel == nil and false or utils.assert_arg (4, kernel, 'boolean')
-      return { base, nprod, at, kernel == true }
+      return setmetatable ({ base, nprod, at, kernel == true }, rule_mt)
     end
 
     --- @param base NonTerminalSymbol
@@ -142,41 +158,7 @@ do
       utils.assert_arg (2, nprod, 'number', function (n) return n == math.floor (n) end, 'not an integer')
       utils.assert_arg (3, at, 'number', function (n) return n == math.floor (n) end, 'not an integer')
       kernel = kernel == nil and false or utils.assert_arg (4, kernel, 'boolean')
-      return { base, nprod, at, kernel == true, terminal }
-    end
-
-    --- @param initial NonTerminalSymbol
-    --- @return ItemLR1[]
-    ---
-    function Item.spawn (initial)
-
-      local items = List { }
-      local seeds = List { { Item.rulelr0 (initial, 1, 1, true) } }
-
-      repeat
-
-        local nexts = List { }
-
-        for _, seed in ipairs (seeds) do
-
-          local itemlr0 = Item.lr0 (seed)
-          local itemlr1 = Item.lr1 (itemlr0)
-
-          items = List.append (items, itemlr1)
-          nexts = List.extend (nexts, Item.next (itemlr0))
-        end
-
-        print (List.map (nexts, function (s)
-
-          return List.map (s, function (e)
-
-            return ('<%s, %i, %i, %s>'):format (e[1].id, e[2], e[3], e[4] and 'kernel' or 'closure', e[5])
-          end)
-        end))
-        --seeds = nexts
-        seeds = List {}
-      until (List.len (seeds) == 0)
-    return items
+      return setmetatable ({ base, nprod, at, kernel == true, terminal }, rule_mt)
     end
 
     return Item

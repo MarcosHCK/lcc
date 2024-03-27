@@ -18,7 +18,7 @@ local tablex = require ('pl.tablex')
 local yield, cowrap = coroutine.yield, coroutine.wrap
 
 --- @alias Line Symbol[]
---- @class LinesOf: table<NonTerminalSymbol, Line[]>
+--- @alias LinesOf table<NonTerminalSymbol, Line[]>
 local LinesOf = { }
 
 do

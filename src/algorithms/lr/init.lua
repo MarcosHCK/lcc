@@ -14,11 +14,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
-local ClosuresOf = require ('algorithms.lr.closures')
 local Grammar = require ('templates.grammar')
 local LinesOf = require ('algorithms.lr.lines')
 local List = require ('pl.List')
-local utils = require ('pl.utils')
 local tablex = require ('pl.tablex')
 
 --- @module 'algorithms'
@@ -27,10 +25,9 @@ local algorithm = {}
 
 --- @class Tuple<T1, T2>: { [1]: T1, [2]: T2 }
 --- @class Registry<T>: table<NonTerminalSymbol, boolean | T>
---- @alias NthFunc fun(s: NonTerminalSymbol, p: integer, n: integer)
 
---- @class ParamInstance: table<string, fun()>
---- @alias ParamConstructor fun(...: any): ParamInstance
+--- @alias NthFunc fun(s: NonTerminalSymbol, p: integer, n: integer?): Symbol | Symbol[]
+--- @alias SetConstructor<T> fun(...: any): T
 
 do
   --- @param grammar Grammar
@@ -46,11 +43,13 @@ do
       return not e.terminal and e.initial == true
     end)
 
-    local eof = assert (grammar:symbol (Grammar.EOF))
+    local eof = assert (Grammar._get (grammar, Grammar.EOF))
+    local epsilon = assert (Grammar._get (grammar, Grammar.EPSILON))
     local nons = Grammar._filter (grammar, function (_, e) return not e.terminal end)
     local initial = assert (initials [tablex.keys (initials) [1]])
 
     --- @cast eof EofSymbol
+    --- @cast epsilon EpsilonSymbol
     --- @cast nons NonTerminalSymbol[]
     --- @cast initial NonTerminalSymbol
 
@@ -71,54 +70,28 @@ do
 
     --- @param symbol NonTerminalSymbol
     --- @param nprod integer
-    --- @param nth integer
-    --- @return Symbol
+    --- @param nth? integer
+    --- @return Symbol?
     ---
     local function nthSymbol (symbol, nprod, nth)
 
       local lines = assert (linesof [symbol])
       local line = assert (lines [nprod])
-      return line[nth]
+      return nth == nil and line or line [nth]
     end
 
-    local closuresof, firstsof = ClosuresOf.new (nthSymbol, nons)
+    --initial = grammar:symbol 'G'
 
-    local Follow = require ('algorithms.lr.follow') (nthSymbol, linesof, firstsof, initial, eof)
-    local Item = require ('algorithms.lr.item') (nthSymbol, firstsof, closuresof, Follow)
-
-    print (closuresof)
-    print (firstsof)
-
-    local itemlr0 = Item.lr0 ({ { initial, 1, 1, true } })
-    local itemlr1 = Item.lr1 (itemlr0)
-
-    for i, rule in ipairs (itemlr0) do
-
-      --- @param e Ast
-      local s = function (e) return getmetatable (eof).__tostring (e, true) end
-
-      print (('rule0 (%d): %s %d %s'):format (i, ('%s -> %s'):format (s (rule [1]), s (rule [1].productions [rule [2]])), rule [3], rule [4] and 'kernel' or 'closure'))
-    end
-
-    for _, symbol in pairs (nons) do
-
-      --- @param e Ast
-      local s = function (e) return getmetatable (eof).__tostring (e, true) end
-
-      print (('follow (%s): %s'):format (s (symbol), tostring (Follow.new (itemlr0, symbol))))
-    end
-
-    for j, next in ipairs (Item.spawn (initial)) do
-
-      for i, rule in ipairs (next) do
-
-        --- @param e Ast
-        local s = function (e) return getmetatable (eof).__tostring (e, true) end
-
-        print (('(%d) rulelr1 (%d): %s; %d %s'):format (j, i, ('%s -> %s, %s'):format (s (rule [1]), s (rule [1].productions [rule [2]]), tostring (rule[5])), rule [3], rule [4] and 'kernel' or 'closure'))
-      end
-    end
-
+    --- @type table<string, Symbol>
+    local symbols = Grammar._filter (grammar, function (_, e) return e ~= epsilon end)
+    local First = require ('algorithms.lr.first') (linesof, epsilon, symbols)
+    local Item = require ('algorithms.lr.item') (linesof)
+    local Closure = require ('algorithms.lr.closure') (nthSymbol, First, Item)
+    local Goto = require ('algorithms.lr.goto') (nthSymbol, Closure, Item)
+    local Table = require ('algorithms.lr.table') (nthSymbol, Goto, Item, eof, initial, symbols)
+    local s0 = Closure [ Item.new { Item.rulelr1 (initial, 1, 1, true, eof) } ]
+    local items, actions, gotos = Table.new (s0)
+    print (Table.write (items, actions, gotos))
     return {}
   end
   return algorithm
