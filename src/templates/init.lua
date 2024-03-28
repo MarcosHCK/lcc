@@ -16,9 +16,9 @@
 --
 --- @module 'templates.d'
 local d
-local canonicalize = require ('templates.canonicalize')
+local canonicalize = require ('grammar.canonicalize')
 local compat = require ('pl.compat')
-local Grammar = require ('templates.grammar')
+local Grammar = require ('grammar')
 local pathutil = require ('pl.path')
 local templates = {}
 local utils = require ('pl.utils')
@@ -51,6 +51,22 @@ do
     return picked
   end
 
+  --- @param stdout file*
+  --- @param ... any
+  ---
+  local function printf (stdout, ...)
+
+    local pre = ''
+
+    for _, arg in ipairs ({...}) do
+
+      stdout:write (tostring (arg), pre)
+      pre = '\t'
+    end
+
+    stdout:write ('\n')
+  end
+
   ---
   --- Compiles a template
   ---
@@ -78,25 +94,11 @@ do
     local global
     local global_mt
 
+    local tmain, first = nil, true
+
     local grammar = Grammar.new ()
     local ruler_mt = { __name = 'Ruler', __tostring = function () return 'RulerCreator' end }
     local token_mt = { __name = 'Token', __tostring = function () return 'TokenCreator' end }
-
-    global_mt =
-      {
-        __index = function (_, k) return _G[k] or grammar:symbol (k) end,
-
-        __name = 'TemplateGlobal',
-
-        __newindex = function (t, key, value)
-
-          if (utils.is_type (value, ruler_mt)) then grammar:nonterminal (key)
-          elseif (utils.is_type (value, token_mt)) then grammar:restrict (grammar:token (key), value)
-          elseif (grammar:symbol (key) ~= nil) then grammar:produce (grammar:symbol (key), value)
-          else rawset (t, key, value)
-          end
-        end
-      }
 
     global =
       {
@@ -112,9 +114,9 @@ do
         ---
         associative = function (symbol, assoc) grammar:associative (symbol, assoc) end,
 
-        --- @type fun(...: string): any
+        --- @type fun(...: any): any
         ---
-        fail = function (...) return assert (io.stderr:write (... or '', '\n')) end,
+        fail = function (...) return printf (io.stderr, ...) end,
 
         --- @type fun(name: string)
         ---
@@ -124,9 +126,26 @@ do
           generator = pick ('generators', name, 'invalid generator \'%s\'')
         end,
 
-        --- @type fun(...: Symbol): Symbol
+        --- @type fun(a: NonTerminalSymbol): Symbol
         ---
-        initial = function (...) return grammar:initial (...) end,
+        initial = function (a)
+
+          if (first) then
+
+            first = not grammar:initial (a)
+          else
+
+            local initials = Grammar._filter (grammar, function (_, e)
+
+              --- @cast e NonTerminalSymbol
+              return not e.terminal and e.initial == true
+            end)
+
+            for _, symbol in pairs (initials) do symbol.initial = false end
+            grammar:initial (a)
+          end
+          return a
+        end,
 
         --- @type fun(a: string): Symbol
         ---
@@ -156,9 +175,31 @@ do
         end,
       }
 
-    global._G = setmetatable (global, global_mt)
+    global_mt =
+      {
+        __index = function (_, k) return _G[k] or grammar:symbol (k) or grammar:nonterminal (k) end,
 
-    local chunk, reason = compat.load (source, chunkname, mode, global)
+        __name = 'TemplateGlobal',
+
+        __newindex = function (t, key, value)
+
+          if (utils.is_type (value, ruler_mt)) then grammar:nonterminal (key)
+          elseif (utils.is_type (value, token_mt)) then grammar:restrict (grammar:token (key), value)
+          elseif (grammar.ast.isOperand (value)) then grammar:produce (grammar:symbol (key) or grammar:nonterminal (key), value)
+            if (first) then
+
+              first = false
+              ---@diagnostic disable-next-line: param-type-mismatch
+              grammar:initial (grammar:symbol (key))
+            end
+          elseif (key == 'main') then tmain = assert (tmain == nil and assert (type (value) == 'function' and value, 'invalid template main'), 'redefining template main')
+          end
+        end
+      }
+
+    global._G = global
+
+    local chunk, reason = compat.load (source, chunkname, mode, setmetatable (global, global_mt))
 
     if (not chunk) then return nil, reason
     else
@@ -171,10 +212,8 @@ do
       if (not success) then return nil, result
       else
 
-
-
         local env = setmetatable ({}, { __index = global })
-        local main = global.main or (function ()
+        local main = tmain or (function ()
 
           assert (algorithm ~= nil, 'parser algorithm was not defined')
           assert (generator ~= nil, 'parser generator was not defined')
@@ -191,7 +230,7 @@ do
 
         return function (stdout)
 
-          env._ = function (...) assert (stdout:write (... or '', '\n')) end
+          env._ = function (...) printf (stdout, ...) end
           return (compat.setfenv (main, env)) (stdout)
         end
       end

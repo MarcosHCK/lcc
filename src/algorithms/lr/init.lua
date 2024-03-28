@@ -14,7 +14,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
-local Grammar = require ('templates.grammar')
+local Grammar = require ('grammar')
 local LinesOf = require ('algorithms.lr.lines')
 local List = require ('pl.List')
 local tablex = require ('pl.tablex')

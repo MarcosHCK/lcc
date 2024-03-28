@@ -17,7 +17,7 @@
 
 --- @meta
 
---- @module 'templates.grammar'
+--- @module 'grammar'
 local Grammar
 
 --- @alias MainFunc fun(tout: file*)
@@ -30,12 +30,25 @@ local Grammar
 main = nil
 
 ---
+--- Grammar object generated from template
+--- @type Grammar
+---
+grammar = nil
+
+---
 --- Prints some output to the template output stream (like file:write (...))
 --- Note: is only defined inside template's main function
 ---
---- @param ... string
+--- @param ... any
 ---
 function _ (...) end
+
+---
+--- Use algorithm algo to generate the parser code
+---
+--- @param algo string
+---
+function algorithm (algo) end
 
 ---
 --- Makes symbol associative
@@ -47,9 +60,16 @@ function associative (symbol, assoc) end
 
 ---
 --- See io.stderr:write (...)
---- @param ... string
+--- @param ... any
 ---
 function fail (...) end
+
+---
+--- Use code generator lang to generate the parser code
+---
+--- @param lang string
+---
+function generator (lang) end
 
 ---
 --- Sets the initial non-terminal ( S symbol in BNF theory )

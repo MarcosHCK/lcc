@@ -17,13 +17,7 @@
 algorithm ('lr')
 generator ('python')
 
-G = nonterminal ()
-E = nonterminal ()
-T = nonterminal ()
-F = nonterminal ()
 n = token ()
-
-initial (G)
 
 G = E
 E = T + '-' + E

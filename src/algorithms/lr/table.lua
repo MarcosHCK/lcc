@@ -89,7 +89,10 @@ do
 
         local line = vh ('')
 
-        for id in tablex.sort (symbols, sorts) do line = line .. col (id) end
+        for id, symbol in tablex.sort (symbols, sorts) do
+
+          if (symbol ~= initial) then line = line .. col (id) end
+        end
 
         lines = List.append (lines, '+' .. string.rep ('-', line:len () - 2) .. '+')
         lines = List.append (lines, line)
@@ -102,12 +105,12 @@ do
 
         for _, symbol in tablex.sort (symbols, sorts) do
 
-          if (not symbol.terminal) then
-
-            bits = List.append (bits, col (tostring (gotos [state] [symbol] or 0)))
-          else
+          if (symbol.terminal) then
 
             bits = List.append (bits, col (tostring (actions [state] [symbol] or '')))
+          elseif (symbol ~= initial) then
+
+            bits = List.append (bits, col (tostring (gotos [state] [symbol] or 0)))
           end
         end
 
@@ -170,7 +173,6 @@ do
 
       local actions = Map { }
       local gotos = Map { }
-      local states = List { }
 
       --
       -- Fill ACTION and GOTO tables
@@ -183,7 +185,7 @@ do
 
         for _, symbol in pairs (symbols) do
 
-          if (not symbol.terminal) then
+          if (not symbol.terminal and symbol ~= initial) then
 
             if (gotor [i] ~= nil and gotor [i] [symbol] ~= nil) then
 

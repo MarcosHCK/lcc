@@ -22,7 +22,7 @@ local utils = require ('pl.utils')
 local EOF = 'EOF'
 local EPSILON = 'EPSILON' -- shoild be ε
 
---- @class List<T>: { [integer]: T }
+--- @class List<T>: table<integer, T>
 --- @field append fun(self: List, item: any)
 --- @field extend fun(self: List, other: List)
 --- @field index fun(self: List, item: any): integer?
@@ -31,7 +31,10 @@ local EPSILON = 'EPSILON' -- shoild be ε
 --- @field pop fun(self: List): any
 local List = require ('pl.List')
 
---- @class Set<T>: { [T]: boolean }
+--- @class Map<K, V>: table<K, V>
+local Map = require ('pl.Map')
+
+--- @class Set<T>: table<T, boolean>
 --- @field len fun(self: Set): integer
 --- @field union fun(a: Set, b: Set): Set
 --- @field values fun(self: Set): List
@@ -39,6 +42,7 @@ local Set = require ('pl.Set')
 
 --- @class Grammar
 --- @field public associative fun(self: Grammar, symbol: string | Symbol, assoc: Associativity): Symbol
+--- @field public ast Ast
 --- @field public initial fun(self: Grammar, symbol: NonTerminalSymbol): NonTerminalSymbol
 --- @field public literal fun(self: Grammar, value: string): TerminalSymbol
 --- @field private nextautomate integer
@@ -50,46 +54,6 @@ local Set = require ('pl.Set')
 --- @field private symbols table<string, Symbol>
 --- @field public token fun(self: Grammar, id: string): TerminalSymbol
 local Grammar = { }
-
---- @alias Associativity 'left' | 'right'
---- @alias AstType 'operator' | 'symbol'
---- @alias Operand Operator | Symbol
---- @alias OperatorKind '&' | '|' | '*' | '+' | '?' | '$'
---- @alias TriggerFunc fun()
-
---- @class Operator: Ast
---- @field public kind OperatorKind
-
---- @class Symbol: Ast
---- @field public associativity? Associativity
---- @field public id? string
---- @field public precedence? integer
---- @field public terminal boolean
---- @field public trigger? TriggerFunc
-
---- @class BinaryOperator: Operator
---- @field public operand1 Operand
---- @field public operand2 Operand
-
---- @class TriggerOperator: Operator
---- @field public callback TriggerFunc
---- @field public operand1 Operand
-
---- @class UnaryOperator: Operator
---- @field public operand1 Operand
-
---- @class EofSymbol: TerminalSymbol
---- @field public eof boolean
-
---- @class EpsilonSymbol: TerminalSymbol
---- @field public epsilon boolean
-
---- @class NonTerminalSymbol: Symbol
---- @field public initial? boolean
---- @field public productions? Operand[]
-
---- @class TerminalSymbol: Symbol
---- @field public restrictions? Set<string>
 
 do
 
@@ -110,7 +74,7 @@ do
           return 'un-usabe grammar'
         else
 
-          local initial = initials[tablex.keys (initials) [1]]
+          local initial = initials [tablex.keys (initials) [1]]
           local head = tostring (initial)
           return head
         end
@@ -140,10 +104,11 @@ do
     error ('WTF?')
   end
 
-  --- @param self Grammar
+  ---
   --- @param productions? boolean # copy productions too
-  --- @return Grammar
-  function Grammar._copy (self, productions)
+  --- @return self
+  ---
+  function Grammar:_copy (productions)
 
     local eof = self.symbols [EOF]
     local epsilon = self.symbols [EPSILON]
@@ -245,66 +210,31 @@ do
     return out
   end
 
-  --- @param self Grammar
-  --- @param fn fun(key: string, symbol: Symbol): boolean
-  --- @return table<string, Symbol>
   ---
-  function Grammar._filter (self, fn)
+  --- @param fn fun(key: string, symbol: Symbol): boolean
+  --- @return Map<string, Symbol>
+  ---
+  function Grammar:_filter (fn)
 
-    local filtered = { }
+    local filtered = Map { }
 
     for key, symbol in pairs (self.symbols) do
 
       if (fn (key, symbol) == true) then
 
-        filtered[key] = symbol
+        filtered [key] = symbol
       end
     end
   return filtered
   end
 
-  --- @param self Grammar
+  ---
   --- @param id string
   --- @return Symbol
   ---
-  function Grammar._get (self, id)
+  function Grammar:_get (id)
 
     return self.symbols [utils.assert_string (1, id)]
-  end
-
-  --- @param Ast Ast
-  --- @param o Operand
-  --- @return Set<TerminalSymbol>
-  local function collectNons (Ast, o)
-
-    if (Ast.isNonTerminal (o)) then return Set { o }
-    elseif (Ast.isOperator (o)) then
-
-      --- @cast o BinaryOperator
-      return collectNons (Ast, o.operand1) + (collectNons (Ast, o.operand2 or {}))
-    end
-    return Set { }
-  end
-
-  --- @param Ast Ast
-  --- @param o Operand
-  --- @return Set<TerminalSymbol>
-  local function extractNons (Ast, o)
-
-    local nexts = List { o }
-    local nons = Set { o }
-
-    while (List.len (nexts) > 0) do
-
-      for _, p in ipairs (List.pop (nexts).productions or { }) do
-
-        local news = Set.union (nons, collectNons (Ast, p))
-
-        nexts = List.extend (nexts, Set.values (news - nons))
-        nons = news
-      end
-    end
-    return nons
   end
 
   ---
@@ -331,8 +261,7 @@ do
     local ast_mt
     local grammar
 
-    --- @class Ast
-    --- @field public type AstType
+    --- @module 'grammar.ast'
     local Ast = { }
 
     --- @param self Grammar
@@ -374,6 +303,43 @@ do
           return self:restrict (s, { value })
         end
       end
+    end
+
+    ---
+    --- @param o Operand
+    --- @return Set<TerminalSymbol>
+    ---
+    local function collectNons (o)
+
+      if (Ast.isNonTerminal (o)) then return Set { o }
+      elseif (Ast.isOperator (o)) then
+
+        --- @cast o BinaryOperator
+        return collectNons (o.operand1) + (collectNons (o.operand2 or {}))
+      end
+      return Set { }
+    end
+
+    ---
+    --- @param o Operand
+    --- @return Set<TerminalSymbol>
+    ---
+    local function extractNons (o)
+
+      local nexts = List { o }
+      local nons = Set { o }
+
+      while (List.len (nexts) > 0) do
+
+        for _, p in ipairs (List.pop (nexts).productions or { }) do
+
+          local news = Set.union (nons, collectNons (p))
+
+          nexts = List.extend (nexts, Set.values (news - nons))
+          nons = news
+        end
+      end
+      return nons
     end
 
     ---
@@ -573,7 +539,7 @@ do
             else
 
               local lines = List { }
-              local nons = List (Set.values (extractNons (Ast, t)))
+              local nons = List (Set.values (extractNons (t)))
 
               for _, non in ipairs (nons) do
 
@@ -605,6 +571,8 @@ do
             node.associativity = assoc
           return node
         end,
+
+        ast = Ast,
 
         --- @type fun(self: Grammar, symbol: NonTerminalSymbol): NonTerminalSymbol
         ---
