@@ -14,7 +14,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
-local tablex = require ('pl.tablex')
+local List = require ('pl.List')
+local Map = require ('pl.Map')
+local OrderedMap = require ('pl.OrderedMap')
 local yield, cowrap = coroutine.yield, coroutine.wrap
 
 --- @alias Line Symbol[]
@@ -45,7 +47,7 @@ do
   --- @return List<Symbol[]>
   local function linearize (from)
 
-    local lines = { }
+    local lines = List { }
 
     for i, production in ipairs (from.productions or { }) do
 
@@ -61,16 +63,16 @@ do
     return lines
   end
 
-  --- @param nons table<string, NonTerminalSymbol>
+  --- @param nons OrderedMap<string, NonTerminalSymbol>
   --- @return LinesOf
   ---
   function LinesOf.new (nons)
 
-    local linesof = { }
+    local linesof = Map { }
 
-    for _, symbol in pairs (nons) do
+    for _, symbol in OrderedMap.iter (nons) do
 
-      linesof[symbol] = linearize (symbol)
+      linesof [symbol] = linearize (symbol)
     end
     return linesof
   end

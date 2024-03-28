@@ -16,8 +16,6 @@
 --
 local Grammar = require ('grammar')
 local LinesOf = require ('algorithms.lr.lines')
-local List = require ('pl.List')
-local tablex = require ('pl.tablex')
 
 --- @module 'algorithms'
 --- @class LRAlgorithm: Algorithm
@@ -37,21 +35,12 @@ do
 
     grammar = Grammar._copy (grammar, true)
 
-    local initials = Grammar._filter (grammar, function (_, e)
-
-      --- @cast e NonTerminalSymbol
-      return not e.terminal and e.initial == true
-    end)
-
     local eof = assert (Grammar._get (grammar, Grammar.EOF))
     local epsilon = assert (Grammar._get (grammar, Grammar.EPSILON))
-    local nons = Grammar._filter (grammar, function (_, e) return not e.terminal end)
-    local initial = assert (initials [tablex.keys (initials) [1]])
+    local initial = assert (grammar:initial ())
 
     --- @cast eof EofSymbol
     --- @cast epsilon EpsilonSymbol
-    --- @cast nons NonTerminalSymbol[]
-    --- @cast initial NonTerminalSymbol
 
     do
 
@@ -62,10 +51,10 @@ do
       initial2.initial = true
       initial = initial2
 
-      List.append (nons, initial2)
       grammar:produce (initial2, initial1 + eof)
     end
 
+    local nons = Grammar._filter (grammar, function (_, e) return not e.terminal end)
     local linesof = LinesOf.new (nons)
 
     --- @param symbol NonTerminalSymbol
@@ -81,6 +70,7 @@ do
     end
 
     local symbols = Grammar._filter (grammar, function (_, e) return e ~= epsilon end)
+
     local Item = require ('algorithms.lr.item') (linesof)
     local Items = require ('algorithms.lr.items') (Item)
     local First = require ('algorithms.lr.first') (linesof, epsilon, symbols)

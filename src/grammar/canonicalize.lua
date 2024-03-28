@@ -17,6 +17,7 @@
 local Grammar = require ('grammar')
 local List = require ('pl.List')
 local Map = require ('pl.Map')
+local OrderedMap = require ('pl.OrderedMap')
 
 do
   --- @param out Grammar
@@ -100,6 +101,22 @@ do
   end
 
   ---
+  --- @param symbols OrderedMap<string, Symbol>
+  --- @param id1 Symbol
+  --- @param id2 Symbol
+  --- @return boolean
+  ---
+  local function compare (symbols, id1, id2)
+
+    local symbol1 = symbols [id1]
+    local symbol2 = symbols [id2]
+
+    if (symbol1.terminal ~= symbol2.terminal) then return symbol2.terminal
+    else return symbol1.precedence < symbol2.precedence
+    end
+  end
+
+  ---
   --- Creates a cononical Grammar instance from in
   ---
   --- @param in_ Grammar
@@ -114,12 +131,14 @@ do
 
     --- @cast epsilon EpsilonSymbol
 
-    for id, symbol in pairs (symbols) do
+    Grammar._sort (out, function (...) return compare (symbols, ...) end)
+
+    for id, symbol in OrderedMap.iter (symbols) do
 
       lookup [symbol] = assert (Grammar._get (out, id))
     end
 
-    for id, symbol in pairs (symbols) do
+    for id, symbol in OrderedMap.iter (symbols) do
 
       if (not symbol.terminal) then
 

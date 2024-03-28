@@ -20,7 +20,7 @@ local tablex = require ('pl.tablex')
 local utils = require ('pl.utils')
 
 local EOF = 'EOF'
-local EPSILON = 'EPSILON' -- shoild be ε
+local EPSILON = 'EPSILON' -- should be ε
 
 --- @class List<T>: table<integer, T>
 --- @field append fun(self: List, item: any)
@@ -32,7 +32,17 @@ local EPSILON = 'EPSILON' -- shoild be ε
 local List = require ('pl.List')
 
 --- @class Map<K, V>: table<K, V>
+--- @field iter fun (self: Map): (fun (): any?, any?)
+--- @field set fun (self: Map, key: any, value: any)
 local Map = require ('pl.Map')
+
+local Precedence = require ('grammar.precedence')
+
+--- @class OrderedMap<K, V>: Map<K, V>
+--- @field private _keys any[]
+--- @field public keys fun(self: OrderedMap): any[]
+--- @field public sort fun(self: OrderedMap, func: Comparer)
+local OrderedMap = require ('pl.OrderedMap')
 
 --- @class Set<T>: table<T, boolean>
 --- @field len fun(self: Set): integer
@@ -41,50 +51,40 @@ local Map = require ('pl.Map')
 local Set = require ('pl.Set')
 
 --- @class Grammar
---- @field public associative fun(self: Grammar, symbol: string | Symbol, assoc: Associativity): Symbol
---- @field public ast Ast
---- @field public initial fun(self: Grammar, symbol: NonTerminalSymbol): NonTerminalSymbol
---- @field public literal fun(self: Grammar, value: string): TerminalSymbol
+--- @field public assert fun (self: Grammar, argn: integer, arg: any, valid?: Validator, msg?: string): Symbol
+--- @field public associative fun (self: Grammar, symbol: string | Symbol, assoc: Associativity): Symbol
+--- @field public check fun (self: Grammar, arg: any): boolean
+--- @field public initial fun (self: Grammar, symbol?: NonTerminalSymbol): NonTerminalSymbol?
 --- @field private nextautomate integer
---- @field public nonterminal fun(self: Grammar, class: string): NonTerminalSymbol
---- @field public precedence fun(self: Grammar, symbol: string | Symbol, value: integer): Symbol
---- @field public produce fun(self: Grammar, symbol: Symbol, operand: Operand): Symbol, Operand
---- @field public restrict fun(self: Grammar, symbol: TerminalSymbol, values: string []): TerminalSymbol
---- @field public symbol fun(self: Grammar, class: string): Symbol
---- @field private symbols table<string, Symbol>
---- @field public token fun(self: Grammar, id: string): TerminalSymbol
+--- @field public nonterminal fun (self: Grammar, class: string): NonTerminalSymbol
+--- @field public operand fun (self: Grammar, argn: integer, arg: any, valid?: Validator, msg?: string): Operand
+--- @field public precedence fun (self: Grammar, symbol: string | Symbol, value: integer): Symbol
+--- @field public produce fun (self: Grammar, symbol: Symbol, operand: Operand): Symbol, Operand
+--- @field public restrict fun (self: Grammar, symbol: TerminalSymbol, values: string []): TerminalSymbol
+--- @field public symbol fun (self: Grammar, class: string): Symbol
+--- @field private symbols OrderedMap<string, Symbol>
+--- @field public token fun (self: Grammar, id: string): TerminalSymbol
 local Grammar = { }
+
+--- @alias Comparer fun(a: any, b: any): boolean
+--- @alias Validator fun(arg: any): boolean
 
 do
 
   local grammar_mt =
     {
+      __index = Grammar,
+
       __name = 'Grammar',
 
-      __tostring = function (self)
-
-        local initials = Grammar._filter (self, function (_, e)
-
-          --- @cast e NonTerminalSymbol
-          return e.type == 'symbol' and not e.terminal and e.initial == true
-        end)
-
-        if (tablex.size (initials) ~= 1) then
-
-          return 'un-usabe grammar'
-        else
-
-          local initial = initials [tablex.keys (initials) [1]]
-          local head = tostring (initial)
-          return head
-        end
-      end,
+      --- @type fun (self: Grammar): string
+      __tostring = function (self) return tostring (self:initial ()) end,
     }
 
-  --- @param self Grammar
+  ---
   --- @return NonTerminalSymbol
   ---
-  function Grammar._automate (self)
+  function Grammar:_automate ()
 
     local next
 
@@ -113,11 +113,17 @@ do
     local eof = self.symbols [EOF]
     local epsilon = self.symbols [EPSILON]
     local specials = List { eof, epsilon }
+    local order = Map { }
     local out = Grammar.new ()
+    local pos = 1
 
-    for id, symbol in pairs (self.symbols) do
+    for id, symbol in OrderedMap.iter (self.symbols) do
 
+      --- @cast id string
+      --- @cast symbol Symbol
       local sym
+
+      order [id], pos = pos, pos + 1
 
       if (not symbol.terminal) then
 
@@ -133,11 +139,10 @@ do
           sym = out:token (symbol.id)
         else
 
-          assert (tablex.size (symbol.restrictions) == 1)
-
-          sym = out:literal (symbol.restrictions [1])
+          sym = out:assert (0, id:match ('\'([^\']+)\''))
         end
 
+        --- @cast sym TerminalSymbol
         sym = out:restrict (sym, symbol.restrictions)
       end if (sym ~= nil) then
 
@@ -147,12 +152,17 @@ do
       end
     end
 
+    OrderedMap.sort (out.symbols, function (a, b) return order[a] < order[b] end)
+
     if (productions == true) then
 
       local inner
       local lookup = {}
 
-      for id, symbol in pairs (self.symbols) do
+      for id, symbol in OrderedMap.iter (self.symbols) do
+
+        --- @cast id string
+        --- @cast symbol Symbol
 
         lookup[symbol] = assert (Grammar._get (out, id))
       end
@@ -195,7 +205,9 @@ do
         end
       end
 
-      for _, symbol in pairs (self.symbols) do
+      for _, symbol in OrderedMap.iter (self.symbols) do
+
+        --- @cast symbol Symbol
 
         if (not symbol.terminal) then
 
@@ -212,13 +224,16 @@ do
 
   ---
   --- @param fn fun(key: string, symbol: Symbol): boolean
-  --- @return Map<string, Symbol>
+  --- @return OrderedMap<string, Symbol>
   ---
   function Grammar:_filter (fn)
 
-    local filtered = Map { }
+    local filtered = OrderedMap { }
 
-    for key, symbol in pairs (self.symbols) do
+    for key, symbol in OrderedMap.iter (self.symbols) do
+
+      --- @cast key string
+      --- @cast symbol Symbol
 
       if (fn (key, symbol) == true) then
 
@@ -235,6 +250,14 @@ do
   function Grammar:_get (id)
 
     return self.symbols [utils.assert_string (1, id)]
+  end
+
+  ---
+  --- @param cmp fun(a: Symbol, b: Symbol): boolean
+  ---
+  function Grammar:_sort (cmp)
+
+    OrderedMap.sort (self.symbols, cmp)
   end
 
   ---
@@ -259,50 +282,36 @@ do
   function Grammar.new ()
 
     local ast_mt
+
     local grammar
+    local order = 0
+    local precedence = Precedence.inc (Precedence.base)
 
     --- @module 'grammar.ast'
     local Ast = { }
 
+    ---
     --- @param self Grammar
     --- @param name string
     --- @param symbol Symbol
     --- @return Symbol
     ---
-    local function _add (self, name, symbol)
+    local function add (self, name, symbol)
 
       ---@diagnostic disable-next-line: invisible
-      assert (not self.symbols[name], ('redefining symbol \'%s\''):format (name))
+      assert (not self.symbols [name], ('redefining symbol \'%s\''):format (name))
 
       ---@diagnostic disable-next-line: invisible
-      self.symbols[name] = symbol
-      return symbol
-    end
+      self.symbols [name] = symbol
 
-    --- @param self Grammar
-    --- @param value string | Symbol
-    --- @return Symbol
-    ---
-    local function _node (self, value)
+      if (not symbol.terminal) then
 
-      if (type (value) ~= 'string') then
-
-        return (utils.assert_arg (1, value, 'table', Ast.isSymbol, 'not a symbol'))
+        symbol.precedence, order = order, order + 1
       else
 
-        local id = ('\'%s\''):format (value)
-        ---@diagnostic disable-next-line: invisible
-        local sym = self.symbols[id]
-
-        if (sym ~= nil) then return sym
-        else
-
-          local s = _add (self, id, Ast.new ('symbol', nil, true))
-
-          --- @cast s TerminalSymbol
-          return self:restrict (s, { value })
-        end
+        symbol.precedence, precedence = Precedence.next (precedence)
       end
+      return symbol
     end
 
     ---
@@ -339,7 +348,49 @@ do
           nons = news
         end
       end
-      return nons
+      return Set.values (nons)
+    end
+
+    --- @type fun(): EofSymbol
+    ---
+    Ast.eof = function ()
+
+      local symbol = Ast.newSymbol (EOF, true)
+
+      --- @cast symbol EofSymbol
+        symbol.eof = true
+        symbol.precedence = math.huge
+      return symbol
+    end
+
+    --- @type fun(): EpsilonSymbol
+    ---
+    Ast.epsilon = function ()
+
+      local symbol = Ast.newSymbol (EPSILON, true)
+
+      --- @cast symbol EpsilonSymbol
+        symbol.epsilon = true
+        symbol.precedence = math.huge
+      return symbol
+    end
+
+    --- @type fun(o: Operand, terminal?: boolean): Symbol?
+    ---
+    Ast.first = function (operand, terminal)
+
+      if (operand.type == 'symbol') then
+
+        --- @cast operand Symbol
+        return (terminal == nil or operand.terminal) and nil or operand
+      elseif (operand.type == 'operator') then
+
+        --- @cast operand BinaryOperator
+        return Ast.first (operand.operand1) or (not operand.operand2 and nil or Ast.first (operand.operand2))
+      else
+
+        error ('unknown AST node ' .. tostring (operand))
+      end
     end
 
     ---
@@ -377,6 +428,21 @@ do
       return true
     end
 
+    --- @type fun(s: any, type?: AstType, ...: any): boolean
+    Ast.isAst = function (s, type) return Ast.is (s, type) end
+    --- @type fun(s: any): boolean
+    Ast.isEof = function (s) return Ast.is (s, 'symbol', true) and s.eof == true end
+    --- @type fun(s: any): boolean
+    Ast.isNonTerminal = function (s) return Ast.is (s, 'symbol', false) end
+    --- @type fun(s: any): boolean
+    Ast.isOperand = function (s) return Ast.isOperator (s) or Ast.isSymbol (s) end
+    --- @type fun(s: any, kind?: OperatorKind): boolean
+    Ast.isOperator = function (s, kind) return Ast.is (s, 'operator', kind) end
+    --- @type fun(s: any, terminal?: boolean): boolean
+    Ast.isSymbol = function (s) return Ast.is (s, 'symbol') end
+    --- @type fun(s: any): boolean
+    Ast.isTerminal = function (s) return Ast.is (s, 'symbol', true) end
+
     ---
     --- @param t AstType
     --- @param ... any
@@ -411,21 +477,6 @@ do
       return setmetatable (node, ast_mt)
     end
 
-    --- @type fun(s: any, type?: AstType, ...: any): boolean
-    Ast.isAst = function (s, type) return Ast.is (s, type) end
-    --- @type fun(s: any): boolean
-    Ast.isEof = function (s) return Ast.is (s, 'symbol', true) and s.eof == true end
-    --- @type fun(s: any): boolean
-    Ast.isNonTerminal = function (s) return Ast.is (s, 'symbol', false) end
-    --- @type fun(s: any): boolean
-    Ast.isOperand = function (s) return Ast.isOperator (s) or Ast.isSymbol (s) end
-    --- @type fun(s: any, kind?: OperatorKind): boolean
-    Ast.isOperator = function (s, kind) return Ast.is (s, 'operator', kind) end
-    --- @type fun(s: any, terminal?: boolean): boolean
-    Ast.isSymbol = function (s) return Ast.is (s, 'symbol') end
-    --- @type fun(s: any): boolean
-    Ast.isTerminal = function (s) return Ast.is (s, 'symbol', true) end
-
     --- @type fun(kind: OperatorKind, op1: Operand, op2?: Operand): Operator
     Ast.newOperator = func.bind1 (Ast.new, 'operator')
     --- @type fun(id?: string, terminal: boolean): Symbol
@@ -433,49 +484,14 @@ do
     --- @type fun(callback: TriggerFunc, op1: Operand): Operator
     Ast.newTrigger = func.bind1 (Ast.new, 'operator')
 
-    --- @type fun(): EofSymbol
-    ---
-    Ast.eof = function ()
-
-      local symbol = Ast.newSymbol (EOF, true)
-
-      --- @cast symbol EofSymbol
-        symbol.eof = true
-      return symbol
-    end
-
-    --- @type fun(): EpsilonSymbol
-    ---
-    Ast.epsilon = function ()
-
-      local symbol = Ast.newSymbol (EPSILON, true)
-
-      --- @cast symbol EpsilonSymbol
-        symbol.epsilon = true
-      return symbol
-    end
-
-    --- @type fun(o: string | Operand): Operand
-    ---
-    Ast.operand = function (o)
-
-      if (type (o) == 'string') then
-
-        return _node (grammar, o)
-      else
-
-        return utils.assert_arg (1, o, 'table', Ast.isOperand, 'not an operand')
-      end
-    end
-
     ast_mt =
       {
         --- @type fun(a: Operand, b: string | Operand): Operator
-        __add = function (a, b) return Ast.newOperator ('&', Ast.operand (a), Ast.operand (b)) end,
+        __add = function (a, b) return Ast.newOperator ('&', grammar:operand (1, a), grammar:operand (2, b)) end,
         --- @type fun(a: Operand, b: TriggerFunc): Operator
-        __div = function (t, c) return Ast.newTrigger (c, Ast.operand (t)) end,
+        __div = function (t, c) return Ast.newTrigger (utils.assert_arg (2, c, 'function'), grammar:operand (1, t)) end,
         --- @type fun(a: Operand, b: string | Operand): Operator
-        __mul = function (a, b) return Ast.newOperator ('|', Ast.operand (a), Ast.operand (b)) end,
+        __mul = function (a, b) return Ast.newOperator ('|', grammar:operand (1, a), grammar:operand (2, b)) end,
 
         __name = 'AST',
 
@@ -483,11 +499,12 @@ do
         ---
         __pow = function (t, n)
 
-          local at = utils.assert_arg (1, n, 'number', function (e) return e == math.floor (e) end, 'not an integer')
+          t = grammar:operand (1, t)
+          n = utils.assert_arg (1, n, 'number', function (e) return e == math.floor (e) end, 'not an integer')
 
-          if (at == 0) then return Ast.newOperator ('*', Ast.operand (t))
-          elseif (at == 1) then return Ast.newOperator ('+', Ast.operand (t))
-          elseif (at == -1) then return Ast.newOperator ('?', Ast.operand (t))
+          if (n == 0) then return Ast.newOperator ('*', t)
+          elseif (n == 1) then return Ast.newOperator ('+', t)
+          elseif (n == -1) then return Ast.newOperator ('?', t)
           else error (('unknown operation %s^%s'):format (tostring (t), tostring (n)))
           end
         end,
@@ -539,7 +556,7 @@ do
             else
 
               local lines = List { }
-              local nons = List (Set.values (extractNons (t)))
+              local nons = extractNons (t)
 
               for _, non in ipairs (nons) do
 
@@ -562,73 +579,107 @@ do
 
     grammar =
       {
+        ---
+        --- @param self Grammar
+        --- @param argn integer
+        --- @param arg any
+        --- @param valid? fun (arg: any): boolean
+        --- @param msg? string
+        --- @return Symbol
+        ---
+        assert = function (self, argn, arg, valid, msg)
+
+          valid = valid or Ast.isSymbol
+          msg = msg or 'not a symbol'
+
+          if (type (arg) ~= 'string') then
+
+            return utils.assert_arg (argn, arg, 'table', valid, msg)
+          else
+
+            local key = ('\'%s\''):format (arg)
+            local sym = grammar.symbols [key]
+
+            if (sym ~= nil) then return sym
+            else
+
+              local s = add (grammar, key, Ast.new ('symbol', nil, true))
+              --- @cast s TerminalSymbol
+              return self:assert (argn, grammar:restrict (s, { arg }), valid, msg)
+            end
+          end
+        end,
+
         --- @type fun(self: Grammar, symbol: string | Symbol, assoc: Associativity): Symbol
         ---
         associative = function (self, symbol, a)
 
-          local node = _node (self, symbol)
-          local assoc = utils.assert_arg (2, a, 'string')
-            node.associativity = assoc
+          local node = self:assert (1, symbol)
+          node.associativity = utils.assert_arg (2, a, 'string')
           return node
         end,
 
-        ast = Ast,
+        --- @type fun(self: Grammar, arg: any): boolean
+        ---
+        check = function (self, arg) return Ast.isAst (arg) end,
 
-        --- @type fun(self: Grammar, symbol: NonTerminalSymbol): NonTerminalSymbol
+        --- @type fun(self: Grammar, symbol?: NonTerminalSymbol): NonTerminalSymbol?
         ---
         initial = function (self, symbol)
 
-          local node = utils.assert_arg (1, symbol, 'table', Ast.isNonTerminal, 'not a non-terminal')
           local anothers = Grammar._filter (self, function (_, e)
 
             --- @cast e NonTerminalSymbol
             return Ast.isNonTerminal (e) and e.initial == true
           end)
 
-          assert (tablex.size (anothers) == 0, 'initial symbol is already set')
+          if (symbol == nil) then
 
-          --- @cast node NonTerminalSymbol
-            node.initial = true
-          return node
+            return anothers [OrderedMap.keys (anothers) [1]]
+          else
+
+            utils.assert_arg (1, symbol, 'table', Ast.isNonTerminal, 'not a non-terminal').initial = true
+            return symbol
+          end
         end,
 
-        --- @type fun(self: Grammar, value: string): TerminalSymbol
-        ---
-        literal = function (self, value)
-
-          --- @type TerminalSymbol
-          return _node (self, utils.assert_string (1, value))
-        end,
+        nextautomate = 1,
 
         --- @type fun(self: Grammar, class: string): NonTerminalSymbol
         ---
         nonterminal = function (self, class)
 
           --- @type NonTerminalSymbol
-          return _add (self, class, Ast.newSymbol (class, false))
+          return add (self, class, Ast.newSymbol (class, false))
+        end,
+
+        --- @type fun(self: Grammar, argn: integer, value: string | Operand | Symbol): Operand
+        ---
+        operand = function (self, argn, value)
+
+          return self:assert (argn, value, Ast.isOperand, 'not an operand')
         end,
 
         --- @type fun(self: Grammar, symbol: string | Symbol, value: integer): Symbol
         ---
         precedence = function (self, symbol, p)
 
-          local node = _node (self, symbol)
-          local precedence = utils.assert_arg (2, p, 'number', function (e) return e == math.floor (e) end, 'not an integer')
-            node.precedence = precedence
+          local node = self:assert (1, symbol)
+          node.precedence = utils.assert_arg (2, p, 'number', function (e) return e == math.floor (e) end, 'not an integer')
           return node
         end,
 
         --- @type fun(self: Grammar, symbol: Symbol, operand: Operand): Symbol, Operand
         ---
-        produce = function (self, symbol, o)
+        produce = function (self, symbol, operand)
 
-          local n = _node (self, symbol)
-          local node = utils.assert_arg (1, n, 'table', Ast.isNonTerminal, 'not a non-terminal symbol')
-          local operand = utils.assert_arg (2, o, 'table', Ast.isOperand, 'not an operand')
+          local node = self:assert (1, symbol)
+          utils.assert_arg (1, node, 'table', Ast.isNonTerminal, 'not a non-terminal symbol')
+          utils.assert_arg (2, operand, 'table', Ast.isOperand, 'not an operand')
 
           --- @cast node NonTerminalSymbol
           --- @cast operand Operand
-            List.append (node.productions, operand)
+          List.append (node.productions, operand)
           return node, operand
         end,
 
@@ -636,7 +687,7 @@ do
         ---
         restrict = function (self, symbol, v)
 
-          local n = _node (self, symbol)
+          local n = self:assert (1, symbol)
           local node = utils.assert_arg (1, n, 'table', Ast.isTerminal, 'not a terminal symbol')
           local values = utils.assert_arg (2, v, 'table')
 
@@ -654,11 +705,10 @@ do
         token = function (self, id)
 
           --- @type TerminalSymbol
-          return _add (self, id, Ast.new ('symbol', id, true))
+          return add (self, id, Ast.new ('symbol', id, true))
         end,
 
-        nextautomate = 1,
-        symbols = { [EOF] = Ast.eof (), [EPSILON] = Ast.epsilon () },
+        symbols = OrderedMap { [EOF] = Ast.eof (), [EPSILON] = Ast.epsilon () },
       }
 
     return setmetatable (grammar, grammar_mt)

@@ -20,6 +20,7 @@ local canonicalize = require ('grammar.canonicalize')
 local compat = require ('pl.compat')
 local Grammar = require ('grammar')
 local pathutil = require ('pl.path')
+local Precedence = require ('grammar.precedence')
 local templates = {}
 local utils = require ('pl.utils')
 
@@ -94,7 +95,8 @@ do
     local global
     local global_mt
 
-    local tmain, first = nil, true
+    local tmain
+    local first = true
 
     local grammar = Grammar.new ()
     local ruler_mt = { __name = 'Ruler', __tostring = function () return 'RulerCreator' end }
@@ -109,10 +111,6 @@ do
           assert (not algorithm, 'parser algorithm was already defined')
           algorithm = pick ('algorithms', name, 'invalid algorithm \'%s\'')
         end,
-
-        --- @type fun(symbol: string | Symbol, assoc: Associativity)
-        ---
-        associative = function (symbol, assoc) grammar:associative (symbol, assoc) end,
 
         --- @type fun(...: any): any
         ---
@@ -147,21 +145,15 @@ do
           return a
         end,
 
-        --- @type fun(a: string): Symbol
-        ---
-        literal = function (a) return grammar:literal (a) end,
+        --- @type fun(a: string | Symbol): Symbol
+        left = function (a) return grammar:associative (a, 'left') end,
 
         --- @type fun(a: string): Symbol
         ---
-        nonterminal = function (a) return setmetatable ({ }, ruler_mt) end,
+        literal = function (a) return grammar:assert (1, a) end,
 
-        --- @type fun(a: string | Symbol, precedence: integer, assoc: Associativity)
-        ---
-        operator = function (a, precedence, assoc) grammar:associative (grammar:precedence (a, precedence), assoc) end,
-
-        --- @type fun(a: string | Symbol, precedence: integer)
-        ---
-        precedence = function (symbol, precedence) grammar:precedence (symbol, precedence) end,
+        --- @type fun(a: string | Symbol): Symbol
+        right = function (a) return grammar:associative (a, 'right') end,
 
         --- @type fun(...: string): Token
         ---
@@ -185,7 +177,7 @@ do
 
           if (utils.is_type (value, ruler_mt)) then grammar:nonterminal (key)
           elseif (utils.is_type (value, token_mt)) then grammar:restrict (grammar:token (key), value)
-          elseif (grammar.ast.isOperand (value)) then grammar:produce (grammar:symbol (key) or grammar:nonterminal (key), value)
+          elseif (grammar:check (value)) then grammar:produce (grammar:symbol (key) or grammar:nonterminal (key), grammar:operand (2, value))
             if (first) then
 
               first = false
@@ -193,6 +185,7 @@ do
               grammar:initial (grammar:symbol (key))
             end
           elseif (key == 'main') then tmain = assert (tmain == nil and assert (type (value) == 'function' and value, 'invalid template main'), 'redefining template main')
+          else rawset (t, key, value)
           end
         end
       }

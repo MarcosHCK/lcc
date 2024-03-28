@@ -51,14 +51,6 @@ function _ (...) end
 function algorithm (algo) end
 
 ---
---- Makes symbol associative
----
---- @param symbol string | Symbol
---- @param assoc Associativity
----
-function associative (symbol, assoc) end
-
----
 --- See io.stderr:write (...)
 --- @param ... any
 ---
@@ -80,10 +72,18 @@ function generator (lang) end
 function initial (symbol) end
 
 ---
+--- Makes symbol left-associative
+---
+--- @param symbol string | Symbol
+---
+function left (symbol) end
+
+---
 --- Wraps a literal value to allow operations over it
 --- Note: due to templates limitations there is no ways to operate directly a
---- production as RULE = 'a' + 'b' ( SOME -> a | b in BNF ), so the left literal
---- should be wrapped using literal
+--- production like RULE = 'a' + 'b' ( RULE -> a | b in BNF ), so the leftmost
+--- literal must be wrapped using literal(resulting in
+--- RULE = literal ('a') + 'b')
 ---
 --- @param value string
 --- @return Symbol
@@ -91,28 +91,11 @@ function initial (symbol) end
 function literal (value) end
 
 ---
---- Creates a non-terminal symbol
----
---- @return Symbol
----
-function nonterminal () end
-
----
---- Shorthand for a associative and precedence over the same symbol
+--- Makes symbol right-associative
 ---
 --- @param symbol string | Symbol
---- @param precedence integer
---- @param assoc Associativity
 ---
-function operator (symbol, precedence, assoc) end
-
----
---- Sets symbol precedence (only meaningful if it is also associative)
----
---- @param symbol string | Symbol
---- @param precedence integer
----
-function precedence (symbol, precedence, assoc) end
+function right (symbol) end
 
 ---
 --- Creates a named token (one which has a token class associated to it)

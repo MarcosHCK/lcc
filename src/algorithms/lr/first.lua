@@ -15,6 +15,7 @@
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
 local List = require ('pl.List')
+local OrderedMap = require ('pl.OrderedMap')
 local Set = require ('pl.Set')
 
 --- @type SetConstructor<First>
@@ -26,7 +27,7 @@ do
   ---
   --- @param linesof LinesOf
   --- @param epsilon EpsilonSymbol
-  --- @param symbols Symbol[]
+  --- @param symbols OrderedMap<string, Symbol>
   --- @return First
   ---
   function constructor (linesof, epsilon, symbols)
@@ -77,7 +78,7 @@ do
 
     local stack = List { }
 
-    for _, symbol in pairs (symbols) do
+    for _, symbol in OrderedMap.iter (symbols) do
 
       if (symbol.terminal) then
 

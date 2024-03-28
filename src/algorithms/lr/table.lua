@@ -17,6 +17,7 @@
 local Action = require ('algorithms.lr.action')
 local List = require ('pl.List')
 local Map = require ('pl.Map')
+local OrderedMap = require ('pl.OrderedMap')
 local tablex = require ('pl.tablex')
 local utils = require ('pl.utils')
 
@@ -89,7 +90,7 @@ do
 
         local line = vh ('')
 
-        for id, symbol in tablex.sort (symbols, sorts) do
+        for id, symbol in OrderedMap.iter (symbols) do
 
           if (symbol ~= initial) then line = line .. col (id) end
         end
@@ -103,7 +104,7 @@ do
 
         local bits = { vh (tostring (state)) }
 
-        for _, symbol in tablex.sort (symbols, sorts) do
+        for _, symbol in OrderedMap.iter (symbols) do
 
           if (symbol.terminal) then
 
@@ -114,7 +115,6 @@ do
           end
         end
 
-        bits = List.append (bits)
         lines = List.append (lines, table.concat (bits))
       end
     return table.concat (lines, '\n')
@@ -136,18 +136,21 @@ do
 
       do
 
-        local i, item = 1, nil
+        local i, item = 0, nil
 
         repeat
 
-          i, item = i + 1, items [i]
+          i = i + 1
+          item = items [i]
 
           if (item ~= nil) then
 
-            for _, symbol in pairs (symbols) do
+            for _, symbol in OrderedMap.iter (symbols) do
 
               local goto_ = Goto [{ item, symbol }]
               local k
+
+              --- @cast symbol Symbol
 
               if (Item.size (goto_) > 0) then
 
@@ -156,12 +159,13 @@ do
 
                 if (k ~= nil) then
 
+
                   gotor [i] [symbol] = k
                 else
 
                   gotor [i] [symbol] = kur
 
-                  i, items = 1, Items.add (items, goto_)
+                  i, items = 0, Items.add (items, goto_)
                   kur = kur + 1
                 break end
               end
@@ -183,7 +187,9 @@ do
         actions [i] = Map { }
         gotos [i] = Map { }
 
-        for _, symbol in pairs (symbols) do
+        for _, symbol in OrderedMap.iter (symbols) do
+
+          --- @cast symbol Symbol
 
           if (not symbol.terminal and symbol ~= initial) then
 
