@@ -123,7 +123,7 @@ do
       return self
     end
 
-    function Items:len () return List.len (OrderedMap.keys (self.store)) end
+    function Items:size () return List.len (OrderedMap.keys (self.store)) end
   return Items
   end
 return constructor

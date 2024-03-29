@@ -23,7 +23,7 @@ local constructor
 --- @module 'algorithms.lr.closure'
 --- @module 'algorithms.lr.item'
 
---- @alias Goto table<GotoOn, ItemLR1Rule[]>
+--- @alias Goto table<GotoOn, Rule[]>
 --- @class GotoOn: { [1]: Item, [2]: Symbol }
 
 do
@@ -31,13 +31,14 @@ do
   --- @param nthSymbol NthFunc
   --- @param Closure Closure
   --- @param Item Item
+  --- @param Rule Rule
   --- @return Closure
   ---
-  function constructor (nthSymbol, Closure, Item)
+  function constructor (nthSymbol, Closure, Item, Rule)
 
     --- @param item_ Item
     --- @param x TerminalSymbol
-    --- @return ItemLR1Rule[]
+    --- @return Item
     ---
     local function expand (item_, x)
 
@@ -51,7 +52,7 @@ do
 
         if (symbol == x) then
 
-          result = Item.add (result, Item.rulelr1 (base, nprod, at + 1, true, t))
+          result = Item.add (result, Rule.new (base, nprod, at + 1, true, t))
         end
       end
       return Closure [result]

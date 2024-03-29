@@ -51,10 +51,26 @@ function _ (...) end
 function algorithm (algo) end
 
 ---
+--- Includes code from filename after the generated code
+---
+function epilog (filename) end
+
+---
 --- See io.stderr:write (...)
 --- @param ... any
 ---
 function fail (...) end
+
+---
+--- Creates a TriggerFunc from the contents of filename.
+--- Note: a TriggerFunc is an iterator which returns code to be copied
+--- verbatim into the generated parser, so make sure to match the language
+--- of the generator.
+---
+--- @param filename string
+--- @return TriggerFunc
+---
+function fragment (filename) end
 
 ---
 --- Use code generator lang to generate the parser code
@@ -89,6 +105,11 @@ function left (symbol) end
 --- @return Symbol
 ---
 function literal (value) end
+
+---
+--- Includes code from filename before the generated code
+---
+function prolog (filename) end
 
 ---
 --- Makes symbol right-associative

@@ -19,6 +19,7 @@ local d
 local canonicalize = require ('grammar.canonicalize')
 local compat = require ('pl.compat')
 local Grammar = require ('grammar')
+local List = require ('pl.List')
 local pathutil = require ('pl.path')
 local Precedence = require ('grammar.precedence')
 local templates = {}
@@ -34,6 +35,28 @@ do
   --- @type string
   ---
   templates.path = '?.lua'
+
+  --- @param includes string[]
+  --- @return TriggerFunc
+  ---
+  local function dump (includes)
+
+    local yield = coroutine.yield
+
+    local fn = function ()
+
+      List.foreach (includes, function (p)
+
+        local stream = assert (io.open (p, 'r'))
+
+        repeat
+          local chunk = stream:read (4096)
+          if (chunk ~= nil) then yield (chunk) end
+        until (not chunk)
+      end)
+    end
+    return coroutine.wrap (fn)
+  end
 
   --- @param from string
   --- @param name string
@@ -74,10 +97,11 @@ do
   --- @param source string | function
   --- @param chunkname? string
   --- @param mode? string
+  --- @param basedir string
   --- @return MainFunc | nil
   --- @return (string | table)? reasonOrSymbols
   ---
-  function templates.compile (source, chunkname, mode)
+  function templates.compile (source, chunkname, mode, basedir)
 
     if (type (source) ~= 'string' and type (source) ~= 'function') then
 
@@ -95,8 +119,10 @@ do
     local global
     local global_mt
 
-    local tmain
+    local epilogs = List { }
     local first = true
+    local prologs = List { }
+    local tmain
 
     local grammar = Grammar.new ()
     local ruler_mt = { __name = 'Ruler', __tostring = function () return 'RulerCreator' end }
@@ -104,7 +130,7 @@ do
 
     global =
       {
-        --- @type fun(name: string)
+        --- @type fun (name: string)
         ---
         algorithm = function (name)
 
@@ -112,11 +138,39 @@ do
           algorithm = pick ('algorithms', name, 'invalid algorithm \'%s\'')
         end,
 
-        --- @type fun(...: any): any
+        --- @type fun (filename: string)
+        ---
+        epilog = function (filename)
+
+          local path = pathutil.join (basedir, filename)
+          local exists = pathutil.isfile (path)
+
+          List.append (epilogs, assert (exists and path, 'not such file \'' .. filename .. '\''))
+        end,
+
+        --- @type fun (...: any): any
         ---
         fail = function (...) return printf (io.stderr, ...) end,
 
-        --- @type fun(name: string)
+        --- @type fun (filename: string): TriggerFunc
+        ---
+        fragment = function (filename)
+
+          utils.assert_string (1, filename)
+          local path = pathutil.join (basedir, filename)
+          local stream = assert (io.open (path, 'r'))
+
+          return function ()
+
+            local line = stream:read ('*l')
+
+            if (not line) then stream:close ()
+            else return line
+            end
+          end
+        end,
+
+        --- @type fun (name: string)
         ---
         generator = function (name)
 
@@ -124,7 +178,7 @@ do
           generator = pick ('generators', name, 'invalid generator \'%s\'')
         end,
 
-        --- @type fun(a: NonTerminalSymbol): Symbol
+        --- @type fun (a: NonTerminalSymbol): Symbol
         ---
         initial = function (a)
 
@@ -145,17 +199,27 @@ do
           return a
         end,
 
-        --- @type fun(a: string | Symbol): Symbol
+        --- @type fun (a: string | Symbol): Symbol
         left = function (a) return grammar:associative (a, 'left') end,
 
-        --- @type fun(a: string): Symbol
+        --- @type fun (a: string): Symbol
         ---
         literal = function (a) return grammar:assert (1, a) end,
 
-        --- @type fun(a: string | Symbol): Symbol
+        --- @type fun (filename: string)
+        ---
+        prolog = function (filename)
+
+          local path = pathutil.join (basedir, filename)
+          local exists = pathutil.isfile (path)
+
+          List.append (prologs, assert (exists and path, 'not such file \'' .. filename .. '\''))
+        end,
+
+        --- @type fun (a: string | Symbol): Symbol
         right = function (a) return grammar:associative (a, 'right') end,
 
-        --- @type fun(...: string): Token
+        --- @type fun (...: string): Token
         ---
         token = function (...)
 
@@ -206,25 +270,26 @@ do
       else
 
         local env = setmetatable ({}, { __index = global })
-        local main = tmain or (function ()
+        local dmain = (function (stdout)
 
           assert (algorithm ~= nil, 'parser algorithm was not defined')
           assert (generator ~= nil, 'parser generator was not defined')
 
-          local table = env.algorithm.emit (env.grammar)
-          local parser = env.generator.emit (table)
-          env._ (parser)
+          local parser = env.algorithm.emit (env.grammar)
+          local code = env.generator.emit (dump (prologs), dump (epilogs), parser)
+          stdout:write (code)
         end)
 
         env._G = env
         env.algorithm = algorithm
+        env.base = dmain
         env.generator = generator
         env.grammar = canonicalize (grammar)
 
         return function (stdout)
 
           env._ = function (...) printf (stdout, ...) end
-          return (compat.setfenv (main, env)) (stdout)
+          return (compat.setfenv (tmain or dmain, env)) (stdout)
         end
       end
     end

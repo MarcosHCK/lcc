@@ -31,13 +31,25 @@ do
 
     local fn
 
+    --- @param operand Operand
+    ---
     fn = function (operand)
 
       if (operand.type == 'symbol') then yield (operand)
-      elseif (operand.type == 'operator') then
+      elseif (operand.type == 'operator' and operand.kind == '&') then
+
+        --- @cast operand BinaryOperator
 
         fn (operand.operand1)
         fn (operand.operand2)
+      elseif (operand.type == 'operator' and operand.kind == '$') then
+
+        --- @cast operand TriggerOperator
+
+        fn (operand.operand1)
+      else
+
+        error ('unknown AST node ' .. tostring (operand))
       end
     end
   return cowrap (function () fn (from) end)

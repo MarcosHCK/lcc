@@ -17,10 +17,8 @@
 local Action = { }
 local utils = require ('pl.utils')
 
---- @alias ActionType
---- | 'accept'
---- | 'reduce'
---- | 'shift'
+--- @alias Action string
+--- @alias ActionType 'accept' | 'reduce' | 'shift'
 
 local types = { a = 'accept', r = 'reduce', s = 'shift' }
 
@@ -37,13 +35,15 @@ do
       return 'acc'
     else
 
-      local t = utils.assert_arg (2, (...), 'number', function (n)
+      local a1, a2 = ...
+
+      a1 = utils.assert_arg (2, a1, 'number', function (n)
 
         return n == math.floor (n)
       end, 'not an integer')
 
-      if (type == 'reduce') then return 'r' .. tostring (t)
-      elseif (type == 'shift') then return 's' .. tostring (t)
+      if (type == 'reduce') then return 'r' .. tostring (a1) .. (not a2 and '' or '.' .. a2)
+      elseif (type == 'shift') then return 's' .. tostring (a1)
       else utils.assert_arg (1, type, 'string', function () return false end, 'not an action type')
       end
     end
@@ -52,17 +52,43 @@ do
   end
 
   ---
-  --- @param serialized string
+  --- @param from string
   --- @return ActionType action_type
   --- @return integer? action_target
+  --- @return integer? action_target2
   ---
-  function Action.unserialize (serialized)
+  function Action.unserialize (from)
 
-    local from = utils.assert_string (1, serialized)
-    local type = assert (types [from:sub (1, 1)], 'unknown action type \'' .. from:sub (1, 1) .. '\'')
-    local target = assert (types [from:sub (2)], 'invalid action \'' .. from .. '\'')
-    assert (type ~= 'accept' or target == 'cc', 'invalid action \'' .. from .. '\'')
-    return type, type == 'accept' and nil or tonumber (target)
+    utils.assert_string (1, from)
+
+    local type, tail = types [from:sub (1, 1)], from:sub (2)
+
+    if (type == 'accept') then
+
+      assert (tail == 'cc', 'invalid action \'' .. from .. '\'')
+      return type
+    elseif (type == 'reduce') then
+
+      local arg1, arg2 = tail:match ('^([0-9]+)%.([0-9]+)$')
+
+      if (not arg1) then
+
+        arg1 = tail:match ('^([0-9]+)$')
+        arg1 = assert (tonumber (arg1), 'invalid action \'' .. from .. '\'')
+      else
+
+        arg1 = assert (tonumber (arg1), 'invalid action \'' .. from .. '\'')
+        arg2 = assert (tonumber (arg2), 'invalid action \'' .. from .. '\'')
+      end
+      return type, arg1, arg2
+    elseif (type == 'shift') then
+
+      local arg1 = assert (tonumber (tail), 'invalid action \'' .. from .. '\'')
+      return type, arg1
+    else
+
+      error ('unknown action type prefix \'' .. from:sub (1, 1) .. '\'')
+    end
   end
 return Action
 end

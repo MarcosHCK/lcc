@@ -94,6 +94,14 @@ do
 
       --- @cast production UnaryOperator
       return breakdown (out, lookup, epsilon, symbol, production.operand1 * epsilon, inner)
+    elseif (production.type == 'operator' and production.kind == '$') then
+
+      --- @cast production TriggerOperator
+      local tails
+
+      tails = breakdown (out, lookup, epsilon, symbol, production.operand1, inner)
+      tails = List.map (tails, function (tail) return tail / production.callback end)
+      return tails
     else
 
       error (('unknown AST node %s'):format (production))

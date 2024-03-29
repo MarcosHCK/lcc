@@ -16,14 +16,24 @@
 --
 
 --- @meta
+--- @module 'algorithms.action'
+--- @module 'algorithms.captures'
 
 --- @class Algorithm
 --- @field emit fun(grammar: Grammar): ParserTable
 
 --- @class ParserTable
---- @field items List<ParserTableItem>
---- @field actions table<integer, table<TerminalSymbol, integer>>
---- @field gotos table<integer, table<NonTerminalSymbol, integer>>
+--- @field actions table<integer, table<TerminalSymbol, Action>>
+--- @field captures Captures
+--- @field gotos table<integer, table<NonTerminalSymbol, string>>
+--- @field items ParserTableItems
+--- @field symbols OrderedMap<string, Symbol>
 
---- @class ParserTableItem: List<ParserTableItem>
+--- @class ParserTableItem: List<ParserTableRule>
+
+--- @class ParserTableItems: List<ParserTableItem>
+--- @field iter fun (): (fun (): integer?, ParserTableItem?)
+--- @field size fun (): integer
+
 --- @class ParserTableRule: { [1]: NonTerminalSymbol, [2]: integer, [3]: integer, [4]: boolean, [5]: TerminalSymbol }
+--- @field size fun (): integer

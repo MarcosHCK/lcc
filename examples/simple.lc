@@ -17,11 +17,18 @@
 algorithm ('lr')
 generator ('python')
 
-n = token ()
+prolog ('simple.prolog.py')
+epilog ('simple.epilog.py')
+
+ident = token ()
+number = token ()
 
 G = E
-E = T + '-' + E
+E = (T + (literal '-' * '+') + E)                       / fragment ('simple.translate.py')
 E = T
-T = F + '*' + T
+T = (F + (literal '*' * '/' * '%') + T)                 / fragment ('simple.translate.py')
 T = F
-F = n
+F = (ident * number)                                    / fragment ('simple.immediate.py')
+F = P
+F = (ident + P)                                         / fragment ('simple.invoke.py')
+P = ('(' + E + ')')                                     / fragment ('simple.depar.py')

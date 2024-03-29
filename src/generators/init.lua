@@ -18,4 +18,4 @@
 --- @meta
 
 --- @class Generator
---- @field emit fun(table_: ParserTable): string
+--- @field emit fun (prolog: TriggerFunc, epilog: TriggerFunc, parser: ParserTable): string

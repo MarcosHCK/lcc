@@ -30,12 +30,13 @@ do
   --- @param nthSymbol NthFunc
   --- @param First First
   --- @param Item Item
+  --- @param Rule Rule
   --- @return Closure
   ---
-  function constructor (nthSymbol, First, Item)
+  function constructor (nthSymbol, First, Item, Rule)
 
     --- @param item Item
-    --- @param rule ItemLR1Rule
+    --- @param rule Rule
     --- @param changed boolean
     --- @return Item item
     --- @return boolean updated
@@ -79,7 +80,7 @@ do
 
               for terminal in pairs (first) do
 
-                local newr = Item.rulelr1 (symbol, i, 1, false, terminal)
+                local newr = Rule.new (symbol, i, 1, false, terminal)
                 result, changed = update (result, newr, changed)
               end
             end

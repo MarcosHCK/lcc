@@ -14,11 +14,11 @@
 -- You should have received a copy of the GNU General Public License
 -- along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 --
-local Action = require ('algorithms.lr.action')
+local Action = require ('algorithms.action')
+local Captures = require ('algorithms.captures')
 local List = require ('pl.List')
 local Map = require ('pl.Map')
 local OrderedMap = require ('pl.OrderedMap')
-local tablex = require ('pl.tablex')
 local utils = require ('pl.utils')
 
 --- @type SetConstructor<Closure>
@@ -178,6 +178,8 @@ do
       local actions = Map { }
       local gotos = Map { }
 
+      local captures = Captures.new ()
+
       --
       -- Fill ACTION and GOTO tables
       --
@@ -205,6 +207,9 @@ do
           local base, nprod, at, _, t = utils.unpack (rule)
           local symbol = nthSymbol (base, nprod, at)
 
+          --- @cast base NonTerminalSymbol
+          --- @cast symbol Symbol
+
           if (symbol ~= nil and symbol.terminal and gotor [i] ~= nil and gotor [i] [symbol] ~= nil) then
 
             actions [i] [symbol] = Action.serialize ('shift', gotor [i] [symbol])
@@ -213,11 +218,20 @@ do
             actions [i] [t] = Action.serialize ('accept')
           elseif (not symbol) then
 
-            actions [i] [t] = Action.serialize ('reduce', j)
+            local operand = base.productions [nprod]
+
+            if (operand.type ~= 'operator' or operand.kind ~= '$') then
+
+              actions [i] [t] = Action.serialize ('reduce', j)
+            else
+
+              --- @cast operand TriggerOperator
+              actions [i] [t] = Action.serialize ('reduce', j, captures:index (operand.callback))
+            end
           end
         end
       end
-      return setmetatable ({ items = items, actions = actions, gotos = gotos }, meta)
+      return setmetatable ({ actions = actions, captures = captures, gotos = gotos, items = items, symbols = symbols }, meta)
     end
     return Table
   end

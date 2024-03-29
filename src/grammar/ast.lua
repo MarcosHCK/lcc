@@ -24,7 +24,7 @@
 --- @alias AstType 'operator' | 'symbol'
 --- @alias Operand Operator | Symbol
 --- @alias OperatorKind '&' | '|' | '*' | '+' | '?' | '$'
---- @alias TriggerFunc fun()
+--- @alias TriggerFunc fun (...: any): string?
 
 --- @class Operator: Ast
 --- @field public kind OperatorKind
@@ -34,7 +34,6 @@
 --- @field public id? string
 --- @field public precedence? integer
 --- @field public terminal boolean
---- @field public trigger? TriggerFunc
 
 --- @class BinaryOperator: Operator
 --- @field public operand1 Operand

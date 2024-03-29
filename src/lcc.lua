@@ -29,6 +29,7 @@ local function main (args)
   parser:option ('-o --output', 'Emit code to file')
 
   local args = parser:parse ()
+  local basedir = '.'
   local chunkname = '(stdin)'
   local input = io.stdin
   local output = io.stdout
@@ -40,8 +41,8 @@ local function main (args)
 
     do
       local anchor = pathutils.abspath (pathutils.dirname (args.input))
-      local anchored = pathutils.join (anchor, '.', '?.lc')
-      local normal = pathutils.normpath (anchored)
+      local normal = pathutils.normpath (anchor)
+      basedir = normal
     end
   end
 
@@ -51,7 +52,7 @@ local function main (args)
   end
 
   local reader = function () local chunk = input:read ('*l'); return chunk and (chunk .. '\n') end
-  local template = assert (templates.compile (reader, '=' .. chunkname, 't'))
+  local template = assert (templates.compile (reader, '=' .. chunkname, 't', basedir))
 
   input:close ()
 

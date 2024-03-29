@@ -148,7 +148,6 @@ do
 
         sym.associativity = symbol.associativity
         sym.precedence = symbol.precedence
-        sym.trigger = symbol.trigger
       end
     end
 
@@ -199,6 +198,10 @@ do
 
           --- @cast production UnaryOperator
           return inner (production.operand1) ^ -1
+        elseif (production.type == 'operator' and production.kind == '$') then
+
+          --- @cast production TriggerOperator
+          return inner (production.operand1) / production.callback
         else
 
           error (('unknown AST node %s'):format (production))

@@ -51,7 +51,7 @@ do
       initial2.initial = true
       initial = initial2
 
-      grammar:produce (initial2, initial1 + eof)
+      grammar:produce (initial2, initial1)
     end
 
     local nons = Grammar._filter (grammar, function (_, e) return not e.terminal end)
@@ -71,13 +71,14 @@ do
 
     local symbols = Grammar._filter (grammar, function (_, e) return e ~= epsilon end)
 
-    local Item = require ('algorithms.lr.item') (linesof)
+    local Rule = require ('algorithms.lr.rule') (linesof)
+    local Item = require ('algorithms.lr.item') (Rule, linesof)
     local Items = require ('algorithms.lr.items') (Item)
     local First = require ('algorithms.lr.first') (linesof, epsilon, symbols)
-    local Closure = require ('algorithms.lr.closure') (nthSymbol, First, Item)
-    local Goto = require ('algorithms.lr.goto') (nthSymbol, Closure, Item)
+    local Closure = require ('algorithms.lr.closure') (nthSymbol, First, Item, Rule)
+    local Goto = require ('algorithms.lr.goto') (nthSymbol, Closure, Item, Rule)
     local Table = require ('algorithms.lr.table') (nthSymbol, Goto, Item, Items, eof, initial, symbols)
-    local s0 = Closure [ Item.new { Item.rulelr1 (initial, 1, 1, true, eof) } ]
+    local s0 = Closure [ Item.new { Rule.new (initial, 1, 1, true, eof) } ]
 
     ---@diagnostic disable-next-line: return-type-mismatch
     return Table.new (s0)
