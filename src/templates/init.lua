@@ -119,7 +119,6 @@ do
     local global
     local global_mt
 
-    local epilogs = List { }
     local first = true
     local prologs = List { }
     local tmain
@@ -136,16 +135,6 @@ do
 
           assert (not algorithm, 'parser algorithm was already defined')
           algorithm = pick ('algorithms', name, 'invalid algorithm \'%s\'')
-        end,
-
-        --- @type fun (filename: string)
-        ---
-        epilog = function (filename)
-
-          local path = pathutil.join (basedir, filename)
-          local exists = pathutil.isfile (path)
-
-          List.append (epilogs, assert (exists and path, 'not such file \'' .. filename .. '\''))
         end,
 
         --- @type fun (...: any): any
@@ -229,6 +218,25 @@ do
           end
           return setmetatable ({...}, token_mt)
         end,
+
+        --- @type fun (...: string): TriggerFunc
+        ---
+        verbatim = function (...)
+
+          local args = {...}
+          local yield = coroutine.yield
+
+          for i, chunk in ipairs (args) do
+
+            utils.assert_arg (i, chunk, 'string')
+          end
+
+          local fn = function ()
+
+            for _, chunk in ipairs (args) do yield (chunk) end
+          end
+        return coroutine.wrap (fn)
+        end,
       }
 
     global_mt =
@@ -276,7 +284,7 @@ do
           assert (generator ~= nil, 'parser generator was not defined')
 
           local parser = env.algorithm.emit (env.grammar)
-          local code = env.generator.emit (dump (prologs), dump (epilogs), parser)
+          local code = env.generator.emit (dump (prologs), parser)
           stdout:write (code)
         end)
 

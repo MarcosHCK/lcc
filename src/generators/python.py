@@ -154,6 +154,29 @@ def Parser (stream: Iterable[Token]):
 ##  end
   }
 
+  def Symbol (token: Token) -> int:
+
+    symbols_by_class = {
+##
+##  for k, v in classes (symbols) do
+##
+      'f"k"' : f"v",
+##  end
+    }
+
+    symbols_by_lexeme = {
+##
+##  for k, v in restrictions (symbols) do
+##
+      'f"k"' : f"v",
+##  end
+    }
+
+    k = symbols_by_class.get (token.type, symbols_by_lexeme.get (token.value))
+
+    if k != None: return k
+    else: raise Exception (f'unknown {token.type} token ({token.value})')
+
   stack = [ 1 ]
 
   for token in stream:
@@ -167,7 +190,7 @@ def Parser (stream: Iterable[Token]):
 
       if (action == None):
 
-        raise Exception (f'unexpected token {token.type}')
+        raise ParserException (token)
 
       elif (action.type == 'accept'):
 
@@ -201,34 +224,22 @@ def Parser (stream: Iterable[Token]):
         stack.append (capture (tuple (things)))
         stack.append (gotos [state] [action.target.lhs])
 
-  raise Exception ('unexpected EOF')
+  raise ParserException (Token (type = 'EOF', value = None))
 
-def Symbol (token: Token) -> int:
+class ParserException (Exception):
 
-  symbols_by_class = {
-##
-##  for k, v in classes (symbols) do
-##
-      'f"k"' : f"v",
-##  end
-  }
+  column: int
+  line: int
+  token: Token
 
-  symbols_by_lexeme = {
-##
-##  for k, v in restrictions (symbols) do
-##
-      'f"k"' : f"v",
-##  end
-  }
+  def __init__ (self, token) -> None:
 
-  k = symbols_by_class.get (token.type, symbols_by_lexeme.get (token.value))
+    super ().__init__ ()
 
-  if k != None: return k
-  else: raise Exception (f'unknown {token.type} token ({token.value})')
+    self.column = token.column
+    self.line = token.line
+    self.token = token
 
-##
-##  for line in epilog do
-##
-f"line"
-##  end
-##
+  def __str__ (self) -> str:
+
+    return f'{self.line}: {self.column}: unexpected token \'{self.token.type}\''

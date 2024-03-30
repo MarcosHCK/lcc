@@ -51,11 +51,6 @@ function _ (...) end
 function algorithm (algo) end
 
 ---
---- Includes code from filename after the generated code
----
-function epilog (filename) end
-
----
 --- See io.stderr:write (...)
 --- @param ... any
 ---
@@ -125,3 +120,11 @@ function right (symbol) end
 --- @return Symbol
 ---
 function token (...) end
+
+---
+--- Works like fragment but copies an string directly instead of a file's
+--- contents
+---
+--- @param ... string
+---
+function verbatim (...) end

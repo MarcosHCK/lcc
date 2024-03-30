@@ -88,11 +88,10 @@ do
 
   ---
   --- @param prolog TriggerFunc
-  --- @param epilog TriggerFunc
   --- @param parser ParserTable
   --- @return string
   ---
-  function generator.emit (prolog, epilog, parser)
+  function generator.emit (prolog, parser)
 
     local name = 'generators/python.py'
     local file = assert (io.open (name, 'r'))
@@ -115,7 +114,6 @@ do
         backref = backref,
         captures = captures,
         Captures = Captures,
-        epilog = epilog,
         gotos = gotos,
         items = items,
         List = List,
