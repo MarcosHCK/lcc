@@ -26,17 +26,16 @@ local format = string.format
 do
   ---
   --- @param Rule Rule
-  --- @param linesof LinesOf
   --- @return Item
   ---
-  function constructor (Rule, linesof)
+  function constructor (Rule)
 
     --- @class Item
+    --- @field public hash string
     --- @field private store table<string, Rule>
     local Item = {}
 
     local meta
-    local serialize = Rule.serialize
 
     meta =
       {
@@ -48,12 +47,12 @@ do
           if (len1 ~= len2) then return false
           else for _, v in Item.iter (self) do
 
-            if (not other.store [serialize (v)]) then return false
+            if (not other.store [v.hash]) then return false
             end
           end return true end
         end,
 
-        __hash = function (self) return '{' .. table.concat (OrderedMap.keys (self.store), ',') .. '}' end,
+        __hash = function (self) return self.hash end,
 
         __index = function (self, k) return Item[k] or self.store [OrderedMap.keys (self.store) [k]] end,
         __name = 'Item',
@@ -70,14 +69,15 @@ do
 
       utils.assert_arg (0, self, 'table', Item.is, 'not an Item')
       utils.assert_arg (1, rule, 'table', Rule.is, 'not an ItemRule')
-      local key = serialize (rule)
+      local key = rule.hash
 
       if (self.store [key] ~= nil) then
 
         return self, false
       else
 
-        OrderedMap.set (self.store, key, rule)
+        self.hash = self.hash .. ',' .. key
+        self.store = OrderedMap.set (self.store, key, rule)
         return self, true
       end
     end
@@ -108,18 +108,22 @@ do
     ---
     function Item.new (list)
 
+      local hashes = List { }
       local store = OrderedMap { }
 
       for i, elm in ipairs (list or {}) do
 
-        utils.assert_arg (1, elm, 'table', Rule.is, format ('not an ItemRule (index %i)', i))
-        OrderedMap.set (store, serialize (elm), elm)
+        --- @cast elm Rule
+        utils.assert_arg (1, elm, 'table', Rule.is, format ('not a Rule (index %i)', i))
+
+        List.append (hashes, elm.hash)
+        OrderedMap.set (store, elm.hash, elm)
       end
-    return setmetatable ({ store = store }, meta)
+    return setmetatable ({ store = store, hash = table.concat (hashes, ',') }, meta)
     end
 
-    --- @type fun(self: Item): integer
-    function Item.size (self) return List.len (OrderedMap.keys (self.store)) end
+    --- @return integer
+    function Item:size () return List.len (OrderedMap.keys (self.store)) end
 
     return Item
   end

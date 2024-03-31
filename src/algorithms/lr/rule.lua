@@ -34,6 +34,7 @@ do
     --- @field public [3] integer
     --- @field public [4] boolean
     --- @field public [5] TerminalSymbol
+    --- @field public hash string
     local Rule = {}
 
     local rule_mt =
@@ -48,7 +49,7 @@ do
           return eq_base and eq_nprod and eq_at and eq_lookahead
         end,
 
-        __hash = function (self) return Rule.serialize (self) end,
+        __hash = function (self) return self.hash end,
         __index = function (_, k) return Rule[k] end,
 
         __name = 'ItemRule',
@@ -58,41 +59,17 @@ do
           local kernel = self [4]
           local state = not kernel and '' or '*'
 
-          return format ('%s%s', Rule.serialize (self), state)
+          return format ('%s%s', self.hash, state)
         end
       }
 
-    --- @type fun(arg: any): boolean
-    function Rule.is (arg) return utils.is_type (arg, rule_mt) end
-
-    ---
     --- @param base NonTerminalSymbol
     --- @param nprod integer
     --- @param at integer
-    --- @param kernel boolean
-    --- @param terminal TerminalSymbol
-    --- @return Rule
-    ---
-    function Rule.new (base, nprod, at, kernel, terminal)
-
-      utils.assert_arg (1, base, 'table')
-      utils.assert_arg (5, terminal, 'table')
-      utils.assert_arg (2, nprod, 'number', function (n) return n == math.floor (n) end, 'not an integer')
-      utils.assert_arg (3, at, 'number', function (n) return n == math.floor (n) end, 'not an integer')
-      kernel = kernel == nil and false or utils.assert_arg (4, kernel, 'boolean')
-
-      return setmetatable ({ base, nprod, at, kernel == true, terminal }, rule_mt)
-    end
-
-    ---
+    --- @param lookahead TerminalSymbol
     --- @return string
     ---
-    function Rule:serialize ()
-
-      local base = self [1]
-      local nprod = self [2]
-      local at = self [3]
-      local lookahead = self [5]
+    local function serialize (base, nprod, at, lookahead)
 
       local meta = getmetatable (base).__tostring
       local tostr = function (e) return meta (e, true) end
@@ -104,10 +81,51 @@ do
       return format ('[%s -> %s%s]', tostr (base), prod, look)
     end
 
+    --- @type fun(arg: any): boolean
+    function Rule.is (arg) return utils.is_type (arg, rule_mt) end
+
+    ---
+    --- @param base NonTerminalSymbol
+    --- @param nprod integer
+    --- @param at integer
+    --- @param kernel boolean
+    --- @param lookahead TerminalSymbol
+    --- @return Rule
+    ---
+    function Rule.new (base, nprod, at, kernel, lookahead)
+
+      utils.assert_arg (1, base, 'table')
+      utils.assert_arg (5, lookahead, 'table')
+      utils.assert_arg (2, nprod, 'number', function (n) return n == math.floor (n) end, 'not an integer')
+      utils.assert_arg (3, at, 'number', function (n) return n == math.floor (n) end, 'not an integer')
+
+      local hash = serialize (base, nprod, at, lookahead)
+      local kernel = kernel == nil and false or utils.assert_arg (4, kernel, 'boolean')
+
+      return setmetatable ({ base, nprod, at, kernel == true, lookahead, hash = hash }, rule_mt)
+    end
+
     ---
     --- @return integer
     ---
-    function Rule:size () return List.len (linesof [self[1]] [self[2]]) end
+    function Rule:size ()
+
+      utils.assert_arg (0, self, 'table', Rule.is, 'not a Rule instance')
+      return List.len (linesof [self[1]] [self[2]])
+    end
+
+    ---
+    --- @return NonTerminalSymbol
+    --- @return integer
+    --- @return integer
+    --- @return boolean
+    --- @return TerminalSymbol
+    ---
+    function Rule:unpack ()
+
+      utils.assert_arg (0, self, 'table', Rule.is, 'not a Rule instance')
+      return self[1], self[2], self[3], self[4], self[5]
+    end
 
     return Rule
   end

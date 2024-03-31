@@ -37,12 +37,13 @@ do
 
     --- @class Items: Item[]
     --- @field private backref table<string, integer>
+    --- @field private hash string
     --- @field private store table<string, Item>
     local Items = { }
 
     local meta =
       {
-        __hash = function (self) return '{' .. table.concat (OrderedMap.keys (self.store), ',') .. '}' end,
+        __hash = function (self) return self.hash end,
         __index = function (self, k) return Items[k] or self.store [OrderedMap.keys (self.store) [k]] end,
         __name = 'Items',
         __tostring = function (self) return tostring (OrderedMap.values (self.store)) end
@@ -66,6 +67,8 @@ do
 
         return self, false
       else
+
+        self.hash = self.hash .. ',' .. key
 
         Map.set (self.backref, key, Item.size (self) + 1)
         OrderedMap.set (self.store, key, item)
@@ -113,7 +116,7 @@ do
       local backref = Map { }
       local store = OrderedMap { }
 
-      local self = setmetatable ({ backref = backref, store = store }, meta)
+      local self = setmetatable ({ backref = backref, store = store, hash = '' }, meta)
 
       for i, elm in ipairs (list) do
 

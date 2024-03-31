@@ -64,6 +64,8 @@ def Lexer (func: str):
 
   yield Token ('ident', func)
   yield Token (None, '(')
+  yield Token ('number', '1')
+  yield Token (None, '-')
   yield Token ('number', '5')
   yield Token (None, '*')
   yield Token (None, '(')

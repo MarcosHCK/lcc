@@ -72,7 +72,7 @@ do
     local symbols = Grammar._filter (grammar, function (_, e) return e ~= epsilon end)
 
     local Rule = require ('algorithms.lr.rule') (linesof)
-    local Item = require ('algorithms.lr.item') (Rule, linesof)
+    local Item = require ('algorithms.lr.item') (Rule)
     local Items = require ('algorithms.lr.items') (Item)
     local First = require ('algorithms.lr.first') (linesof, epsilon, symbols)
     local Closure = require ('algorithms.lr.closure') (nthSymbol, First, Item, Rule)

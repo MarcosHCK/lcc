@@ -134,6 +134,13 @@ do
       -- Create the table items
       --
 
+      local sets = Map { }
+
+      for _, item in Items.iter (items) do
+
+        sets [item] = Map { }
+      end
+
       do
 
         local i, item = 0, nil
@@ -147,8 +154,14 @@ do
 
             for _, symbol in OrderedMap.iter (symbols) do
 
-              local goto_ = Goto [{ item, symbol }]
+              local goto_ = sets [item] [symbol]
               local k
+
+              if (not goto_) then
+
+                goto_ = Goto [{ item, symbol }]
+                sets [item] [symbol] = goto_
+              end
 
               --- @cast symbol Symbol
 
@@ -165,8 +178,9 @@ do
 
                   gotor [i] [symbol] = kur
 
-                  i, items = 0, Items.add (items, goto_)
                   kur = kur + 1
+                  i, items = 0, Items.add (items, goto_)
+                  sets [goto_] = Map { }
                 break end
               end
             end

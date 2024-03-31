@@ -49,7 +49,7 @@ do
 
         i = i + 1
 
-        if (symbol.id ~= nil) then
+        if (symbol.id ~= nil and symbol.terminal) then
 
           yield (generator.escape (symbol.id), i)
         end
