@@ -177,6 +177,39 @@ def Parser (stream: Iterable[Token]):
     if k != None: return k
     else: raise Exception (f'unknown {token.type} token ({token.value})')
 
+  def Expected (state: int) -> str:
+
+    expected = [ ]
+
+    symbols_by_index = {
+##
+##  for i, _, symbol in seq.enum (OrderedMap.iter (parser.symbols)) do
+##
+##    if (symbol.terminal and symbol.id ~= nil) then
+##
+        f"i": [ 'f"symbol.id"' ],
+##    elseif (symbol.terminal) then
+##
+        f"i": [ f"table.concat (List.map (symbol.restrictions, function (e) return ('\'%s\''):format (escape (e)) end), ',')" ],
+##    end
+##  end
+##
+    }
+
+    for symbol in actions [state].keys ():
+
+      expected.extend (list (map (lambda a: f'\'{a}\'', symbols_by_index [symbol])))
+
+    if (len (expected) < 2):
+
+      return expected [0]
+    elif (len (expected) < 3):
+
+      return f'{expected [0]} or {expected [1]}'
+    else:
+
+      return ', '.join (expected [:-2]) + f' or {expected [-1]}'
+
   stack = [ 1 ]
 
   for token in stream:
@@ -190,7 +223,7 @@ def Parser (stream: Iterable[Token]):
 
       if (action == None):
 
-        raise ParserException (token)
+        raise ParserException (token, Expected (state))
 
       elif (action.type == 'accept'):
 
@@ -224,7 +257,7 @@ def Parser (stream: Iterable[Token]):
         stack.append (capture (tuple (things)))
         stack.append (gotos [state] [action.target.lhs])
 
-  raise ParserException (Token (type = 'EOF', value = None))
+  raise ParserException (Token (type = 'EOF', value = None), Expected (stack [-1]))
 
 class ParserException (Exception):
 
@@ -232,14 +265,15 @@ class ParserException (Exception):
   line: int
   token: Token
 
-  def __init__ (self, token) -> None:
+  def __init__ (self, token, expected) -> None:
 
     super ().__init__ ()
 
     self.column = token.column
+    self.expected = expected
     self.line = token.line
     self.token = token
 
   def __str__ (self) -> str:
 
-    return f'{self.line}: {self.column}: unexpected token \'{self.token.type}\''
+    return f'{self.line}: {self.column}: unexpected token \'{self.token.type}\', expected {self.expected}'

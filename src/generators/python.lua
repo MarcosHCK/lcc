@@ -39,6 +39,32 @@ do
       end,
     }
 
+  function generator.backrefs (symbols)
+
+    local fn = function ()
+
+      local i = 0
+
+      for _, symbol in OrderedMap.iter (symbols) do
+
+        --- @cast symbol TerminalSymbol
+        i = i + 1
+
+        if (symbol.terminal and symbol.id ~= nil) then
+
+          yield (i, generator.escape (symbol.id))
+        elseif (symbol.terminal) then
+
+          for _, restriction in ipairs (symbol.restrictions) do
+
+            yield (i, generator.escape (restriction))
+          end
+        end
+      end
+    end
+  return cowrap (fn)
+  end
+
   function generator.classes (symbols)
 
     local fn = function ()
@@ -47,6 +73,7 @@ do
 
       for _, symbol in OrderedMap.iter (symbols) do
 
+        --- @cast symbol Symbol
         i = i + 1
 
         if (symbol.id ~= nil and symbol.terminal) then

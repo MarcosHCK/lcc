@@ -15,7 +15,7 @@
 # along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-Token = namedtuple ('Token', [ 'type', 'value' ])
+Token = namedtuple ('Token', [ 'column', 'line', 'type', 'value' ])
 
 class Node:
 
@@ -62,21 +62,21 @@ class Invoke (Node):
 
 def Lexer (func: str):
 
-  yield Token ('ident', func)
-  yield Token (None, '(')
-  yield Token ('number', '1')
-  yield Token (None, '-')
-  yield Token ('number', '5')
-  yield Token (None, '*')
-  yield Token (None, '(')
-  yield Token ('number', '6')
-  yield Token (None, '+')
-  yield Token ('number', '2')
-  yield Token (None, '*')
-  yield Token ('number', '3')
-  yield Token (None, ')')
-  yield Token (None, ')')
-  yield Token ('EOF', None)
+  yield Token (1, 1, 'ident', func)
+  yield Token (1, 1, None, '(')
+  yield Token (1, 1, 'number', '1')
+  yield Token (1, 1, None, '-')
+  yield Token (1, 1, 'number', '5')
+  yield Token (1, 1, None, '*')
+  yield Token (1, 1, None, '(')
+  yield Token (1, 1, 'number', '6')
+  yield Token (1, 1, None, '+')
+  yield Token (1, 1, 'number', '2')
+  yield Token (1, 1, None, '*')
+  yield Token (1, 1, 'number', '3')
+  yield Token (1, 1, None, ')')
+  yield Token (1, 1, None, ')')
+  yield Token (1, 1, 'EOF', None)
 
 def Dump (tokens: Iterable[Token]):
 
