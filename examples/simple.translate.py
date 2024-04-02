@@ -15,4 +15,4 @@
 # along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-return BinaryOperator (args [1], args [0], args [2])
+return BinaryOperator (args [1].value, args [0], args [2])

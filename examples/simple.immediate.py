@@ -15,4 +15,4 @@
 # along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-return Immediate (args [0])
+return Immediate (args [0].value)

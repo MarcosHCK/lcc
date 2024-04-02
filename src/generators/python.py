@@ -65,11 +65,12 @@ def Parser (stream: Iterable[Token]):
 ##  end
   }
 
-  def capture0 (args: Tuple) -> Any:
+  def capture0 (args: Tuple, first: Token) -> Any:
 
     if (args.__len__ () == 1):
 
       return args [0]
+
     return args
 ##
 ##  local function capturename (index)
@@ -80,7 +81,7 @@ def Parser (stream: Iterable[Token]):
 ##  for capture, i in captures:iter () do
 ##
 
-  def f"capturename (i)" (args: Tuple) -> Any:
+  def f"capturename (i)" (args: Tuple, first: Token) -> Any:
 
 ##    for line in capture do
 ##
@@ -232,7 +233,7 @@ def Parser (stream: Iterable[Token]):
       elif (action.type == 'shift'):
 
         stack.append (state)
-        stack.append (token.value)
+        stack.append (token)
         stack.append (action.target)
         break
 
@@ -254,7 +255,7 @@ def Parser (stream: Iterable[Token]):
         things.reverse ()
 
         stack.append (state)
-        stack.append (capture (tuple (things)))
+        stack.append (capture (tuple (things), None if len (things) == 0 else things [0]))
         stack.append (gotos [state] [action.target.lhs])
 
   raise ParserException (Token (type = 'EOF', value = None), Expected (stack [-1]))

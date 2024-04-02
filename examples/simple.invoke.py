@@ -15,4 +15,4 @@
 # along with lcc.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-return Invoke (args [0], args [1])
+return Invoke (args [0].value, args [1])
